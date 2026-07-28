@@ -95,7 +95,7 @@
             </tr>
         </thead>
         <tbody id="corpo-tabela">
-            <tr><td colspan="4" style="text-align: center; padding: 40px; color: #888;">A carregar dados instantaneamente... ⏳</td></tr>
+            <tr><td colspan="4" style="text-align: center; padding: 40px; color: #888;">A carregar dados do banco instantaneamente... ⏳</td></tr>
         </tbody>
     </table>
 
@@ -104,26 +104,40 @@
     <script>
         let dadosOriginais = [];
         let uploadTempData = {}; 
+        
+        // ====================================================================
+        // 1. CARREGAMENTO DOS DADOS DIRETO DO SUPABASE (Ultra Rápido)
+        // ====================================================================
+        const supabaseUrl = "https://jlheqyylcrczdkwucycj.supabase.co/rest/v1/api_dados?select=json_completo&id=eq.1";
+        const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsaGVxeXlsY3JjemRrd3VjeWNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyNTc2MTMsImV4cCI6MjEwMDgzMzYxM30.zQ2C_929ddwBnl-a1eRzLBa08GZ08CZwYcjLNda61XU";
 
-        google.script.run
-            .withSuccessHandler(function(respostaString) {
-                try {
-                    let resposta = JSON.parse(respostaString);
-                    if(resposta.erroCritico) {
-                        document.getElementById('corpo-tabela').innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--danger); font-weight: bold; padding: 40px;">⚠️ Erro: ${resposta.erroCritico}</td></tr>`;
-                        return;
-                    }
-                    document.getElementById('link-planilha').href = resposta.urlPlanilha;
-                    dadosOriginais = resposta.fornecedores;
-                    
-                    dadosOriginais.sort((a, b) => a.score - b.score);
-                    renderizarTabela(dadosOriginais);
-                } catch(e) {
-                    document.getElementById('corpo-tabela').innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--danger); padding: 40px;">⚠️ Erro: ${e.message}</td></tr>`;
-                }
-            })
-            .pegarDadosDetalhados();
+        fetch(supabaseUrl, {
+            method: 'GET',
+            headers: {
+                'apikey': supabaseKey,
+                'Authorization': 'Bearer ' + supabaseKey
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if(data && data.length > 0) {
+                let resposta = data[0].json_completo;
+                document.getElementById('link-planilha').href = resposta.urlPlanilha;
+                dadosOriginais = resposta.fornecedores;
+                
+                dadosOriginais.sort((a, b) => a.score - b.score);
+                renderizarTabela(dadosOriginais);
+            } else {
+                throw new Error("Nenhum dado encontrado no banco. Execute o Apps Script primeiro.");
+            }
+        })
+        .catch(error => {
+            document.getElementById('corpo-tabela').innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--danger); padding: 40px;">⚠️ Erro de Conexão: ${error.message}</td></tr>`;
+        });
 
+        // ====================================================================
+        // 2. RENDERIZAÇÃO DA TABELA (Intacta)
+        // ====================================================================
         function renderizarTabela(dados) {
             const tabela = document.getElementById('corpo-tabela');
             tabela.innerHTML = '';
@@ -243,6 +257,9 @@
             renderizarTabela(filtrados);
         };
 
+        // ====================================================================
+        // 3. UPLOAD DE ARQUIVOS (Aviso Importante Abaixo!)
+        // ====================================================================
         window.abrirSeletor = function(idFornecedor, nomeFornecedor, abaDestino, linhaBase, colStatus) {
             uploadTempData = { idFornecedor, nomeFornecedor, abaDestino, linhaBase, colStatus };
             document.getElementById('arquivo-upload').click();
@@ -252,7 +269,7 @@
             const arquivo = input.files[0];
             if (!arquivo) return;
 
-            document.getElementById('loading-text').innerText = 'A guardar e atualizar o sistema...';
+            document.getElementById('loading-text').innerText = 'A preparar arquivo...';
             document.getElementById('loading-overlay').style.display = 'flex';
             
             const reader = new FileReader();
@@ -260,15 +277,11 @@
                 const base64Data = e.target.result.split(',')[1];
                 const pacoteUpload = { nomeArquivo: arquivo.name, mimeType: arquivo.type, base64: base64Data, ...uploadTempData };
                 
-                google.script.run.withSuccessHandler(function(res) {
-                    document.getElementById('loading-overlay').style.display = 'none';
-                    if(res.sucesso) { 
-                        alert('Arquivo anexado! A planilha foi atualizada.'); 
-                        location.reload(); 
-                    } else { 
-                        alert('Erro ao enviar: ' + res.erro); 
-                    }
-                }).receberUpload(pacoteUpload);
+                // NOTA: Como estamos fora do Google, vamos precisar fazer uma requisição POST (fetch)
+                // para um Web App do Apps Script para que ele salve o arquivo no seu Google Drive.
+                // Substituiremos este alert pela chamada final no próximo passo!
+                alert("Para fazer o upload funcionar no Vercel, precisamos gerar um link de 'Web App' no Apps Script!");
+                document.getElementById('loading-overlay').style.display = 'none';
             };
             reader.readAsDataURL(arquivo);
         };
