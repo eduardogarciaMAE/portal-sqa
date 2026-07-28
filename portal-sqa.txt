@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <title>Portal SQA - Stellantis & Hyundai</title>
+    <style>
+        :root { --primary: #2c3e50; --success: #2ecc71; --danger: #e74c3c; --light: #ecf0f1; --blue: #3498db; --gray: #95a5a6; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f4f6f8; padding: 20px; color: #333; margin: 0; }
+        .header { background: white; border-top: 4px solid var(--primary); padding: 20px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px;}
+        .header h1 { margin: 0; font-size: 20px; color: var(--primary); }
+        .btn-top { background: var(--light); color: var(--primary); text-decoration: none; padding: 8px 15px; border-radius: 5px; font-weight: 600; border: 1px solid #ddd; transition: 0.2s;}
+        .btn-top:hover { background: #e2e6e9; }
+        
+        .filtros { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .filtros input, .filtros select { flex: 1; min-width: 220px; padding: 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 14px; background: white; color: #333; outline: none; transition: 0.2s;}
+        .filtros input:focus, .filtros select:focus { border-color: var(--blue); }
+        
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        th, td { padding: 15px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background-color: #f8f9fa; color: #555; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
+        
+        .linha-fornecedor { cursor: pointer; transition: 0.2s; }
+        .linha-fornecedor:hover { background-color: #f1f4f6; }
+        .linha-detalhes { background-color: #fafbfc; display: none; }
+        
+        .score-container { display: flex; align-items: center; gap: 10px; }
+        .score-bg { background: #e9ecef; width: 120px; height: 8px; border-radius: 10px; overflow: hidden; }
+        .score-fill { height: 100%; border-radius: 10px; transition: width 0.5s; }
+        .score-text { font-size: 13px; font-weight: bold; color: #555; width: 40px;}
+
+        .tabs-nav { display: flex; border-bottom: 1px solid #ddd; margin-bottom: 15px; padding: 0 15px;}
+        .tab-btn { background: none; border: none; padding: 10px 20px; font-size: 14px; font-weight: 600; color: #777; cursor: pointer; border-bottom: 3px solid transparent; transition: 0.2s; }
+        .tab-btn.active { color: var(--blue); border-bottom: 3px solid var(--blue); }
+        .tab-btn:hover { color: var(--primary); }
+        
+        .tab-content { display: none; padding: 0 15px 15px 15px; }
+        .tab-content.active { display: block; }
+
+        .ficha-fornecedor { display: flex; gap: 30px; flex-wrap: wrap; background: white; padding: 20px; border-radius: 8px; border: 1px solid #eee; }
+        .ficha-item span { display: block; font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 4px;}
+        .ficha-item strong { font-size: 14px; color: #333; }
+        
+        .docs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 15px; }
+        .doc-card { background: white; padding: 15px; border-radius: 6px; border: 1px solid #eee; border-left: 4px solid #ccc; position: relative;}
+        .doc-card h4 { margin: 0 0 5px 0; font-size: 13px; color: #444; }
+        .doc-card p { margin: 0 0 15px 0; font-size: 12px; color: #777; }
+        
+        .btn-link { background: #f8f9fa; color: var(--primary); border: 1px solid #ddd; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; transition: 0.2s;}
+        .btn-link:hover { background: #e2e6e9; }
+        
+        .btn-upload { background: var(--primary); color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; transition: 0.2s;}
+        .btn-upload:hover { background: #1a252f; }
+        
+        #loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); z-index: 9999; justify-content: center; align-items: center; flex-direction: column; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid var(--blue); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px;}
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <h3 id="loading-text" style="color:#333; font-weight:normal;">A processar...</h3>
+    </div>
+
+    <div class="header">
+        <div><h1>Portal SQA - Central de Fornecedores</h1></div>
+        <a href="#" id="link-planilha" target="_blank" class="btn-top">Abrir Planilha Base ↗</a>
+    </div>
+
+    <div class="filtros">
+        <input type="text" id="busca" placeholder="🔍 Procurar por Nome do Fornecedor ou Código SAP..." oninput="filtrarDados()">
+        
+        <select id="filtro-status" onchange="filtrarDados()">
+            <option value="todos">Status ERP: Todos</option>
+            <option value="OK">Status ERP: OK</option>
+            <option value="NOK">Status ERP: NOK / Pendente</option>
+        </select>
+
+        <select id="filtro-progresso" onchange="filtrarDados()">
+            <option value="todos">Progresso: Todos</option>
+            <option value="100">Progresso: 100% (Concluído)</option>
+            <option value="parcial">Progresso: 1% a 99% (Em Andamento)</option>
+            <option value="0">Progresso: 0% (Pendente)</option>
+        </select>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th width="15%">Cód. SAP</th>
+                <th width="45%">Fornecedor</th>
+                <th width="25%">Progresso Real</th>
+                <th width="15%" style="text-align: right;">Ação</th>
+            </tr>
+        </thead>
+        <tbody id="corpo-tabela">
+            <tr><td colspan="4" style="text-align: center; padding: 40px; color: #888;">A carregar dados instantaneamente... ⏳</td></tr>
+        </tbody>
+    </table>
+
+    <input type="file" id="arquivo-upload" style="display: none;" onchange="processarUpload(this)">
+
+    <script>
+        let dadosOriginais = [];
+        let uploadTempData = {}; 
+
+        google.script.run
+            .withSuccessHandler(function(respostaString) {
+                try {
+                    let resposta = JSON.parse(respostaString);
+                    if(resposta.erroCritico) {
+                        document.getElementById('corpo-tabela').innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--danger); font-weight: bold; padding: 40px;">⚠️ Erro: ${resposta.erroCritico}</td></tr>`;
+                        return;
+                    }
+                    document.getElementById('link-planilha').href = resposta.urlPlanilha;
+                    dadosOriginais = resposta.fornecedores;
+                    
+                    dadosOriginais.sort((a, b) => a.score - b.score);
+                    renderizarTabela(dadosOriginais);
+                } catch(e) {
+                    document.getElementById('corpo-tabela').innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--danger); padding: 40px;">⚠️ Erro: ${e.message}</td></tr>`;
+                }
+            })
+            .pegarDadosDetalhados();
+
+        function renderizarTabela(dados) {
+            const tabela = document.getElementById('corpo-tabela');
+            tabela.innerHTML = '';
+
+            if(dados.length === 0) {
+                tabela.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 40px; color: #888;">Nenhum fornecedor encontrado com a combinação de filtros atual.</td></tr>`;
+                return;
+            }
+
+            dados.forEach(f => {
+                let corScore = f.score >= 100 ? 'var(--success)' : (f.score >= 50 ? '#f39c12' : 'var(--danger)');
+
+                let linhaHTML = `
+                    <tr class="linha-fornecedor" onclick="toggleDetalhe('${f.id}')">
+                        <td><strong>${f.id}</strong></td>
+                        <td>${f.nome}</td>
+                        <td>
+                            <div class="score-container">
+                                <span class="score-text">${f.score}%</span>
+                                <div class="score-bg"><div class="score-fill" style="width: ${f.score}%; background-color: ${corScore};"></div></div>
+                            </div>
+                        </td>
+                        <td style="text-align: right; color: var(--blue); font-size: 13px; font-weight: 600;" id="icon-${f.id}">⮟ Expandir</td>
+                    </tr>
+                `;
+
+                let docsHTML = f.documentos.map(d => {
+                    let botoes = '';
+                    if (d.link) {
+                        botoes = `<a href="${d.link}" target="_blank" class="btn-link">Ver Arquivo ↗</a>`;
+                    } else if (d.linhaBase === -1) { 
+                        botoes = `<span style="font-size: 11px; color: #f39c12; font-style: italic;">Não localizado</span>`;
+                    } else if (d.cor === '#e74c3c') { 
+                        botoes = `<button class="btn-upload" onclick="abrirSeletor('${f.id}', '${f.nome}', '${d.abaDestino}', '${d.linhaBase}', '${d.colStatus}'); event.stopPropagation();">↑ Anexar PDF</button>`;
+                    } else {
+                        botoes = `<span style="font-size: 11px; color: #999; font-style: italic;">Não Aplicável</span>`;
+                    }
+
+                    return `
+                        <div class="doc-card" style="border-left-color: ${d.cor};">
+                            <h4>${d.nome}</h4>
+                            <p style="color: ${d.cor === '#e74c3c' || d.cor === '#f39c12' ? d.cor : '#777'}; font-weight: ${d.cor === '#e74c3c' || d.cor === '#f39c12' ? 'bold' : 'normal'};">Status: ${d.status}</p>
+                            ${botoes}
+                        </div>
+                    `;
+                }).join('');
+
+                linhaHTML += `
+                    <tr id="detalhe-${f.id}" class="linha-detalhes">
+                        <td colspan="4" style="padding: 0; border-bottom: 2px solid #ddd;">
+                            <div class="tabs-nav">
+                                <button class="tab-btn active" onclick="mudarAba(event, 'docs-${f.id}')">📄 Auditoria e Certificados</button>
+                                <button class="tab-btn" onclick="mudarAba(event, 'info-${f.id}')">ℹ️ Ficha Cadastral</button>
+                            </div>
+                            <div id="docs-${f.id}" class="tab-content active"><div class="docs-grid">${docsHTML}</div></div>
+                            <div id="info-${f.id}" class="tab-content">
+                                <div class="ficha-fornecedor">
+                                    <div class="ficha-item"><span>País de Origem</span><strong>${f.pais}</strong></div>
+                                    <div class="ficha-item"><span>Status ERP</span><strong>${f.statusGeral}</strong></div>
+                                    <div class="ficha-item" style="width: 100%;"><span>Contatos (E-mail)</span><strong>${f.emails}</strong></div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                tabela.innerHTML += linhaHTML;
+            });
+        }
+
+        window.toggleDetalhe = function(id) {
+            const linha = document.getElementById(`detalhe-${id}`);
+            const icone = document.getElementById(`icon-${id}`);
+            if (linha.style.display === 'table-row') {
+                linha.style.display = 'none'; icone.innerText = '⮟ Expandir';
+            } else {
+                linha.style.display = 'table-row'; icone.innerText = '⮝ Fechar';
+            }
+        };
+
+        window.mudarAba = function(evento, idAba) {
+            evento.stopPropagation(); 
+            let linhaDetalhe = evento.target.closest('.linha-detalhes');
+            linhaDetalhe.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            linhaDetalhe.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            evento.target.classList.add('active');
+            document.getElementById(idAba).classList.add('active');
+        };
+
+        window.filtrarDados = function() {
+            const busca = document.getElementById('busca').value.toLowerCase();
+            const statusFiltro = document.getElementById('filtro-status').value;
+            const progressoFiltro = document.getElementById('filtro-progresso').value;
+
+            const filtrados = dadosOriginais.filter(f => {
+                const confereBusca = f.nome.toLowerCase().includes(busca) || f.id.toLowerCase().includes(busca);
+                
+                let confereStatus = true;
+                const statusGeral = f.statusGeral ? f.statusGeral.toUpperCase() : '';
+                if (statusFiltro === 'OK') {
+                    confereStatus = statusGeral.includes('OK') && !statusGeral.includes('NOK');
+                } else if (statusFiltro === 'NOK') {
+                    confereStatus = statusGeral.includes('NOK') || statusGeral.includes('PENDENTE') || statusGeral.includes('ATRASADO') || statusGeral.includes('ANALISAR');
+                }
+
+                let confereProgresso = true;
+                if (progressoFiltro === '100') {
+                    confereProgresso = (f.score === 100);
+                } else if (progressoFiltro === 'parcial') {
+                    confereProgresso = (f.score > 0 && f.score < 100);
+                } else if (progressoFiltro === '0') {
+                    confereProgresso = (f.score === 0);
+                }
+
+                return confereBusca && confereStatus && confereProgresso;
+            });
+
+            renderizarTabela(filtrados);
+        };
+
+        window.abrirSeletor = function(idFornecedor, nomeFornecedor, abaDestino, linhaBase, colStatus) {
+            uploadTempData = { idFornecedor, nomeFornecedor, abaDestino, linhaBase, colStatus };
+            document.getElementById('arquivo-upload').click();
+        };
+
+        window.processarUpload = function(input) {
+            const arquivo = input.files[0];
+            if (!arquivo) return;
+
+            document.getElementById('loading-text').innerText = 'A guardar e atualizar o sistema...';
+            document.getElementById('loading-overlay').style.display = 'flex';
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const base64Data = e.target.result.split(',')[1];
+                const pacoteUpload = { nomeArquivo: arquivo.name, mimeType: arquivo.type, base64: base64Data, ...uploadTempData };
+                
+                google.script.run.withSuccessHandler(function(res) {
+                    document.getElementById('loading-overlay').style.display = 'none';
+                    if(res.sucesso) { 
+                        alert('Arquivo anexado! A planilha foi atualizada.'); 
+                        location.reload(); 
+                    } else { 
+                        alert('Erro ao enviar: ' + res.erro); 
+                    }
+                }).receberUpload(pacoteUpload);
+            };
+            reader.readAsDataURL(arquivo);
+        };
+    </script>
+</body>
+</html>
