@@ -258,7 +258,7 @@
         };
 
         // ====================================================================
-        // 3. UPLOAD DE ARQUIVOS (Aviso Importante Abaixo!)
+        // 3. UPLOAD DE ARQUIVOS (Integrado via Fila no Supabase)
         // ====================================================================
         window.abrirSeletor = function(idFornecedor, nomeFornecedor, abaDestino, linhaBase, colStatus) {
             uploadTempData = { idFornecedor, nomeFornecedor, abaDestino, linhaBase, colStatus };
@@ -269,20 +269,57 @@
             const arquivo = input.files[0];
             if (!arquivo) return;
 
-            document.getElementById('loading-text').innerText = 'A preparar arquivo...';
+            document.getElementById('loading-text').innerText = 'A enviar arquivo para a fila...';
             document.getElementById('loading-overlay').style.display = 'flex';
             
             const reader = new FileReader();
             reader.onload = function(e) {
                 const base64Data = e.target.result.split(',')[1];
-                const pacoteUpload = { nomeArquivo: arquivo.name, mimeType: arquivo.type, base64: base64Data, ...uploadTempData };
                 
-                // NOTA: Como estamos fora do Google, vamos precisar fazer uma requisição POST (fetch)
-                // para um Web App do Apps Script para que ele salve o arquivo no seu Google Drive.
-                // Substituiremos este alert pela chamada final no próximo passo!
-                alert("Para fazer o upload funcionar no Vercel, precisamos gerar um link de 'Web App' no Apps Script!");
-                document.getElementById('loading-overlay').style.display = 'none';
+                // Pacote completo com dados do arquivo + contexto da planilha
+                const pacoteUpload = { 
+                    nomeArquivo: arquivo.name, 
+                    mimeType: arquivo.type, 
+                    base64: base64Data, 
+                    ...uploadTempData 
+                };
+                
+                // Envia direto para a tabela fila_uploads do Supabase
+                const urlFila = "https://jlheqyylcrczdkwucycj.supabase.co/rest/v1/fila_uploads";
+                
+                fetch(urlFila, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': supabaseKey,
+                        'Authorization': 'Bearer ' + supabaseKey,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=minimal'
+                    },
+                    body: JSON.stringify({
+                        pacote: pacoteUpload,
+                        processado: false
+                    })
+                })
+                .then(res => {
+                    document.getElementById('loading-overlay').style.display = 'none';
+                    if(res.ok) {
+                        alert("✅ Arquivo enviado para processamento!\nO Google Apps Script irá salvá-lo no Drive e atualizar a planilha em até 5 minutos.");
+                        input.value = ""; // Limpa a seleção do arquivo
+                    } else {
+                        throw new Error("Erro na resposta do servidor Supabase.");
+                    }
+                })
+                .catch(err => {
+                    document.getElementById('loading-overlay').style.display = 'none';
+                    alert("❌ Erro ao enviar o arquivo para a fila: " + err.message);
+                });
             };
+
+            reader.onerror = function() {
+                document.getElementById('loading-overlay').style.display = 'none';
+                alert("❌ Erro ao ler o arquivo local.");
+            };
+
             reader.readAsDataURL(arquivo);
         };
     </script>
