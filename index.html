@@ -1,327 +1,537 @@
-<!DOCTYPE html>
-<html lang="pt-PT">
-<head>
-    <meta charset="UTF-8">
-    <title>Portal SQA </title>
-    <style>
-        :root { --primary: #2c3e50; --success: #2ecc71; --danger: #e74c3c; --light: #ecf0f1; --blue: #3498db; --gray: #95a5a6; }
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f4f6f8; padding: 20px; color: #333; margin: 0; }
-        .header { background: white; border-top: 4px solid var(--primary); padding: 20px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px;}
-        .header h1 { margin: 0; font-size: 20px; color: var(--primary); }
-        .btn-top { background: var(--light); color: var(--primary); text-decoration: none; padding: 8px 15px; border-radius: 5px; font-weight: 600; border: 1px solid #ddd; transition: 0.2s;}
-        .btn-top:hover { background: #e2e6e9; }
-        
-        .filtros { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .filtros input, .filtros select { flex: 1; min-width: 220px; padding: 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 14px; background: white; color: #333; outline: none; transition: 0.2s;}
-        .filtros input:focus, .filtros select:focus { border-color: var(--blue); }
-        
-        table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        th, td { padding: 15px; text-align: left; border-bottom: 1px solid #eee; }
-        th { background-color: #f8f9fa; color: #555; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
-        
-        .linha-fornecedor { cursor: pointer; transition: 0.2s; }
-        .linha-fornecedor:hover { background-color: #f1f4f6; }
-        .linha-detalhes { background-color: #fafbfc; display: none; }
-        
-        .score-container { display: flex; align-items: center; gap: 10px; }
-        .score-bg { background: #e9ecef; width: 120px; height: 8px; border-radius: 10px; overflow: hidden; }
-        .score-fill { height: 100%; border-radius: 10px; transition: width 0.5s; }
-        .score-text { font-size: 13px; font-weight: bold; color: #555; width: 40px;}
+import React, { useState, useEffect, useMemo } from 'react';
 
-        .tabs-nav { display: flex; border-bottom: 1px solid #ddd; margin-bottom: 15px; padding: 0 15px;}
-        .tab-btn { background: none; border: none; padding: 10px 20px; font-size: 14px; font-weight: 600; color: #777; cursor: pointer; border-bottom: 3px solid transparent; transition: 0.2s; }
-        .tab-btn.active { color: var(--blue); border-bottom: 3px solid var(--blue); }
-        .tab-btn:hover { color: var(--primary); }
+// =========================================================================
+// PORTAL SQA - FRONTEND INTEGRADO COM SUPABASE E FILTROS INTELIGENTES
+// =========================================================================
+export default function App() {
+  const [fornecedores, setFornecedores] = useState([]);
+  const [urlPlanilha, setUrlPlanilha] = useState('');
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState(null);
+
+  // --- ESTADOS DOS FILTROS ---
+  const [buscaNome, setBuscaNome] = useState('');
+  const [filtroStatus, setFiltroStatus] = useState('TODOS');
+  const [filtroPais, setFiltroPais] = useState('TODOS');
+  
+  // --- ESTADO PARA MODAL DE UPLOAD ---
+  const [fornecedorSelecionado, setFornecedorSelecionado] = useState(null);
+  const [docSelecionado, setDocSelecionado] = useState(null);
+  const [arquivo, setArquivo] = useState(null);
+  const [enviando, setEnviando] = useState(false);
+
+  // =========================================================================
+  // 1. BUSCA DADOS DO BANCO SUPABASE
+  // =========================================================================
+  const fetchDadosSupabase = async () => {
+    setCarregando(true);
+    setErro(null);
+    const urlSupabase = "https://jlheqyylcrczdkwucycj.supabase.co/rest/v1/api_dados?id=eq.1&select=*";
+    const apiKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsaGVxeXlsY3JjemRrd3VjeWNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyNTc2MTMsImV4cCI6MjEwMDgzMzYxM30.zQ2C_929ddwBnl-a1eRzLBa08GZ08CZwYcjLNda61XU";
+
+    try {
+      const resposta = await fetch(urlSupabase, {
+        method: 'GET',
+        headers: {
+          'apikey': apiKey,
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!resposta.ok) {
+        throw new Error(`Erro na API: ${resposta.status}`);
+      }
+
+      const registros = await resposta.json();
+      if (registros && registros.length > 0 && registros[0].json_completo) {
+        const payload = registros[0].json_completo;
+        setFornecedores(payload.fornecedores || []);
+        setUrlPlanilha(payload.urlPlanilha || '');
+      } else {
+        setFornecedores([]);
+      }
+    } catch (e) {
+      console.error("Erro ao buscar dados:", e);
+      setErro("Falha ao carregar dados do sistema. Tente recarregar a página.");
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDadosSupabase();
+  }, []);
+
+  // =========================================================================
+  // 2. EXTRAÇÃO DE VALORES ÚNICOS PARA OS DROPDOWNS DO FILTRO
+  // =========================================================================
+
+  // Países únicos existentes no banco
+  const paisesUnicos = useMemo(() => {
+    const lista = fornecedores.map(f => f.pais || 'N/D').filter(Boolean);
+    return [...new Set(lista)].sort();
+  }, [fornecedores]);
+
+  // Porcentagens únicas E existentes no banco (Sem repetição, sem 0% e 100%)
+  const porcentagensUnicas = useMemo(() => {
+    const lista = fornecedores
+      .map(f => Number(f.score))
+      .filter(val => !isNaN(val) && val > 0 && val < 100);
+    
+    // Set garante zero duplicação
+    return [...new Set(lista)].sort((a, b) => b - a);
+  }, [fornecedores]);
+
+  // =========================================================================
+  // 3. LÓGICA DE FILTRAGEM DOS FORNECEDORES
+  // =========================================================================
+  const fornecedoresFiltrados = useMemo(() => {
+    return fornecedores.filter((fornecedor) => {
+      const score = Number(fornecedor.score) || 0;
+
+      // --- A. FILTRO DE STATUS UNIFICADO ---
+      if (filtroStatus !== 'TODOS') {
+        if (filtroStatus === '100' && score !== 100) return false;
+        if (filtroStatus === '1_99' && (score < 1 || score >= 100)) return false;
+        if (filtroStatus === '0' && score !== 0) return false;
         
-        .tab-content { display: none; padding: 0 15px 15px 15px; }
-        .tab-content.active { display: block; }
+        // Se escolheu uma porcentagem dinâmica exata (ex: "89", "16")
+        if (
+          !['100', '1_99', '0'].includes(filtroStatus) &&
+          String(score) !== filtroStatus
+        ) {
+          return false;
+        }
+      }
 
-        .ficha-fornecedor { display: flex; gap: 30px; flex-wrap: wrap; background: white; padding: 20px; border-radius: 8px; border: 1px solid #eee; }
-        .ficha-item span { display: block; font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 4px;}
-        .ficha-item strong { font-size: 14px; color: #333; }
-        
-        .docs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 15px; }
-        .doc-card { background: white; padding: 15px; border-radius: 6px; border: 1px solid #eee; border-left: 4px solid #ccc; position: relative;}
-        .doc-card h4 { margin: 0 0 5px 0; font-size: 13px; color: #444; }
-        .doc-card p { margin: 0 0 15px 0; font-size: 12px; color: #777; }
-        
-        .btn-link { background: #f8f9fa; color: var(--primary); border: 1px solid #ddd; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; transition: 0.2s;}
-        .btn-link:hover { background: #e2e6e9; }
-        
-        .btn-upload { background: var(--primary); color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; transition: 0.2s;}
-        .btn-upload:hover { background: #1a252f; }
-        
-        #loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); z-index: 9999; justify-content: center; align-items: center; flex-direction: column; }
-        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid var(--blue); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px;}
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    </style>
-</head>
-<body>
+      // --- B. FILTRO DE PAÍS ---
+      if (filtroPais !== 'TODOS' && fornecedor.pais !== filtroPais) {
+        return false;
+      }
 
-    <div id="loading-overlay">
-        <div class="spinner"></div>
-        <h3 id="loading-text" style="color:#333; font-weight:normal;">A processar...</h3>
-    </div>
+      // --- C. BUSCA POR NOME OU SAP ---
+      if (buscaNome.trim() !== '') {
+        const termo = buscaNome.trim().toLowerCase();
+        const nome = String(fornecedor.nome || '').toLowerCase();
+        const sap = String(fornecedor.id || '').toLowerCase();
+        if (!nome.includes(termo) && !sap.includes(termo)) {
+          return false;
+        }
+      }
 
-    <div class="header">
-        <div><h1>Portal SQA - Central de Fornecedores</h1></div>
-        <a href="#" id="link-planilha" target="_blank" class="btn-top">Abrir Planilha Base ↗</a>
-    </div>
+      return true;
+    });
+  }, [fornecedores, filtroStatus, filtroPais, buscaNome]);
 
-    <div class="filtros">
-        <input type="text" id="busca" placeholder="🔍 Procurar por Nome do Fornecedor ou Código SAP..." oninput="filtrarDados()">
-        
-        <select id="filtro-status" onchange="filtrarDados()">
-            <option value="todos">Status ERP: Todos</option>
-            <option value="OK">Status ERP: OK</option>
-            <option value="NOK">Status ERP: NOK / Pendente</option>
-        </select>
+  // =========================================================================
+  // 4. ENVIO DE ARQUIVO (FILA SUPABASE -> GAS)
+  // =========================================================================
+  const handleUpload = async (e) => {
+    e.preventDefault();
+    if (!arquivo || !fornecedorSelecionado || !docSelecionado) return;
 
-        <select id="filtro-progresso" onchange="filtrarDados()">
-            <option value="todos">Progresso: Todos</option>
-            <option value="100">Progresso: 100% (Concluído)</option>
-            <option value="parcial">Progresso: 1% a 99% (Em Andamento)</option>
-            <option value="0">Progresso: 0% (Pendente)</option>
-        </select>
-    </div>
+    setEnviando(true);
+    const reader = new FileReader();
 
-    <table>
-        <thead>
-            <tr>
-                <th width="15%">Cód. SAP</th>
-                <th width="45%">Fornecedor</th>
-                <th width="25%">Progresso Real</th>
-                <th width="15%" style="text-align: right;">Ação</th>
-            </tr>
-        </thead>
-        <tbody id="corpo-tabela">
-            <tr><td colspan="4" style="text-align: center; padding: 40px; color: #888;">A carregar dados do banco instantaneamente... ⏳</td></tr>
-        </tbody>
-    </table>
+    reader.onload = async () => {
+      const base64Full = reader.result;
+      const base64Clean = base64Full.split(',')[1];
 
-    <input type="file" id="arquivo-upload" style="display: none;" onchange="processarUpload(this)">
+      const pacoteUpload = {
+        idFornecedor: fornecedorSelecionado.id,
+        nomeFornecedor: fornecedorSelecionado.nome,
+        nomeArquivo: arquivo.name,
+        mimeType: arquivo.type || "application/pdf",
+        base64: base64Clean,
+        abaDestino: docSelecionado.abaDestino,
+        linhaBase: docSelecionado.linhaBase,
+        colStatus: docSelecionado.colStatus
+      };
 
-    <script>
-        let dadosOriginais = [];
-        let uploadTempData = {}; 
-        
-        // ====================================================================
-        // 1. CARREGAMENTO DOS DADOS DIRETO DO SUPABASE (Ultra Rápido)
-        // ====================================================================
-        const supabaseUrl = "https://jlheqyylcrczdkwucycj.supabase.co/rest/v1/api_dados?select=json_completo&id=eq.1";
-        const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsaGVxeXlsY3JjemRrd3VjeWNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyNTc2MTMsImV4cCI6MjEwMDgzMzYxM30.zQ2C_929ddwBnl-a1eRzLBa08GZ08CZwYcjLNda61XU";
+      const urlFila = "https://jlheqyylcrczdkwucycj.supabase.co/rest/v1/fila_uploads";
+      const apiKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsaGVxeXlsY3JjemRrd3VjeWNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyNTc2MTMsImV4cCI6MjEwMDgzMzYxM30.zQ2C_929ddwBnl-a1eRzLBa08GZ08CZwYcjLNda61XU";
 
-        fetch(supabaseUrl, {
-            method: 'GET',
-            headers: {
-                'apikey': supabaseKey,
-                'Authorization': 'Bearer ' + supabaseKey
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if(data && data.length > 0) {
-                let resposta = data[0].json_completo;
-                document.getElementById('link-planilha').href = resposta.urlPlanilha;
-                dadosOriginais = resposta.fornecedores;
-                
-                dadosOriginais.sort((a, b) => a.score - b.score);
-                renderizarTabela(dadosOriginais);
-            } else {
-                throw new Error("Nenhum dado encontrado no banco. Execute o Apps Script primeiro.");
-            }
-        })
-        .catch(error => {
-            document.getElementById('corpo-tabela').innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--danger); padding: 40px;">⚠️ Erro de Conexão: ${error.message}</td></tr>`;
+      try {
+        const resp = await fetch(urlFila, {
+          method: 'POST',
+          headers: {
+            'apikey': apiKey,
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            pacote: pacoteUpload,
+            processado: false
+          })
         });
 
-        // ====================================================================
-        // 2. RENDERIZAÇÃO DA TABELA (Intacta)
-        // ====================================================================
-        function renderizarTabela(dados) {
-            const tabela = document.getElementById('corpo-tabela');
-            tabela.innerHTML = '';
-
-            if(dados.length === 0) {
-                tabela.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 40px; color: #888;">Nenhum fornecedor encontrado com a combinação de filtros atual.</td></tr>`;
-                return;
-            }
-
-            dados.forEach(f => {
-                let corScore = f.score >= 100 ? 'var(--success)' : (f.score >= 50 ? '#f39c12' : 'var(--danger)');
-
-                let linhaHTML = `
-                    <tr class="linha-fornecedor" onclick="toggleDetalhe('${f.id}')">
-                        <td><strong>${f.id}</strong></td>
-                        <td>${f.nome}</td>
-                        <td>
-                            <div class="score-container">
-                                <span class="score-text">${f.score}%</span>
-                                <div class="score-bg"><div class="score-fill" style="width: ${f.score}%; background-color: ${corScore};"></div></div>
-                            </div>
-                        </td>
-                        <td style="text-align: right; color: var(--blue); font-size: 13px; font-weight: 600;" id="icon-${f.id}">⮟ Expandir</td>
-                    </tr>
-                `;
-
-                let docsHTML = f.documentos.map(d => {
-                    let botoes = '';
-                    if (d.link) {
-                        botoes = `<a href="${d.link}" target="_blank" class="btn-link">Ver Arquivo ↗</a>`;
-                    } else if (d.linhaBase === -1) { 
-                        botoes = `<span style="font-size: 11px; color: #f39c12; font-style: italic;">Não localizado</span>`;
-                    } else if (d.cor === '#e74c3c') { 
-                        botoes = `<button class="btn-upload" onclick="abrirSeletor('${f.id}', '${f.nome}', '${d.abaDestino}', '${d.linhaBase}', '${d.colStatus}'); event.stopPropagation();">↑ Anexar PDF</button>`;
-                    } else {
-                        botoes = `<span style="font-size: 11px; color: #999; font-style: italic;">Não Aplicável</span>`;
-                    }
-
-                    return `
-                        <div class="doc-card" style="border-left-color: ${d.cor};">
-                            <h4>${d.nome}</h4>
-                            <p style="color: ${d.cor === '#e74c3c' || d.cor === '#f39c12' ? d.cor : '#777'}; font-weight: ${d.cor === '#e74c3c' || d.cor === '#f39c12' ? 'bold' : 'normal'};">Status: ${d.status}</p>
-                            ${botoes}
-                        </div>
-                    `;
-                }).join('');
-
-                linhaHTML += `
-                    <tr id="detalhe-${f.id}" class="linha-detalhes">
-                        <td colspan="4" style="padding: 0; border-bottom: 2px solid #ddd;">
-                            <div class="tabs-nav">
-                                <button class="tab-btn active" onclick="mudarAba(event, 'docs-${f.id}')">📄 Auditoria e Certificados</button>
-                                <button class="tab-btn" onclick="mudarAba(event, 'info-${f.id}')">ℹ️ Ficha Cadastral</button>
-                            </div>
-                            <div id="docs-${f.id}" class="tab-content active"><div class="docs-grid">${docsHTML}</div></div>
-                            <div id="info-${f.id}" class="tab-content">
-                                <div class="ficha-fornecedor">
-                                    <div class="ficha-item"><span>País de Origem</span><strong>${f.pais}</strong></div>
-                                    <div class="ficha-item"><span>Status ERP</span><strong>${f.statusGeral}</strong></div>
-                                    <div class="ficha-item" style="width: 100%;"><span>Contatos (E-mail)</span><strong>${f.emails}</strong></div>
-                                </div>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-                tabela.innerHTML += linhaHTML;
-            });
+        if (resp.ok) {
+          alert("Arquivo enviado com sucesso! O sistema atualizará o status em alguns minutos.");
+          setFornecedorSelecionado(null);
+          setDocSelecionado(null);
+          setArquivo(null);
+        } else {
+          alert("Erro ao enviar o arquivo. Tente novamente.");
         }
+      } catch (err) {
+        console.error("Erro upload:", err);
+        alert("Erro de conexão ao enviar o arquivo.");
+      } finally {
+        setEnviando(false);
+      }
+    };
 
-        window.toggleDetalhe = function(id) {
-            const linha = document.getElementById(`detalhe-${id}`);
-            const icone = document.getElementById(`icon-${id}`);
-            if (linha.style.display === 'table-row') {
-                linha.style.display = 'none'; icone.innerText = '⮟ Expandir';
-            } else {
-                linha.style.display = 'table-row'; icone.innerText = '⮝ Fechar';
-            }
-        };
+    reader.readAsDataURL(arquivo);
+  };
 
-        window.mudarAba = function(evento, idAba) {
-            evento.stopPropagation(); 
-            let linhaDetalhe = evento.target.closest('.linha-detalhes');
-            linhaDetalhe.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            linhaDetalhe.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            evento.target.classList.add('active');
-            document.getElementById(idAba).classList.add('active');
-        };
+  // =========================================================================
+  // RENDERIZAÇÃO DA TELA
+  // =========================================================================
+  return (
+    <div style={estilos.container}>
+      {/* CABEÇALHO */}
+      <header style={estilos.header}>
+        <div>
+          <h1 style={estilos.titulo}>Portal SQA - Conformidade de Fornecedores</h1>
+          <p style={estilos.subtitulo}>Acompanhamento de certificados e auditorias</p>
+        </div>
+        {urlPlanilha && (
+          <a href={urlPlanilha} target="_blank" rel="noreferrer" style={estilos.botaoPlanilha}>
+            📄 Ver Planilha Master
+          </a>
+        )}
+      </header>
 
-        window.filtrarDados = function() {
-            const busca = document.getElementById('busca').value.toLowerCase();
-            const statusFiltro = document.getElementById('filtro-status').value;
-            const progressoFiltro = document.getElementById('filtro-progresso').value;
+      {/* BARRA DE FILTROS INTEGRADA */}
+      <section style={estilos.secaoFiltros}>
+        {/* Busca SAP / Nome */}
+        <div style={estilos.grupoFiltro}>
+          <label style={estilos.labelFiltro}>Buscar Fornecedor / SAP</label>
+          <input
+            type="text"
+            placeholder="Digite nome ou SAP..."
+            value={buscaNome}
+            onChange={(e) => setBuscaNome(e.target.value)}
+            style={estilos.input}
+          />
+        </div>
 
-            const filtrados = dadosOriginais.filter(f => {
-                const confereBusca = f.nome.toLowerCase().includes(busca) || f.id.toLowerCase().includes(busca);
-                
-                let confereStatus = true;
-                const statusGeral = f.statusGeral ? f.statusGeral.toUpperCase() : '';
-                if (statusFiltro === 'OK') {
-                    confereStatus = statusGeral.includes('OK') && !statusGeral.includes('NOK');
-                } else if (statusFiltro === 'NOK') {
-                    confereStatus = statusGeral.includes('NOK') || statusGeral.includes('PENDENTE') || statusGeral.includes('ATRASADO') || statusGeral.includes('ANALISAR');
-                }
+        {/* Único Dropdown de STATUS (Sem repetidas, ordenado) */}
+        <div style={estilos.grupoFiltro}>
+          <label style={estilos.labelFiltro}>Status</label>
+          <select
+            value={filtroStatus}
+            onChange={(e) => setFiltroStatus(e.target.value)}
+            style={estilos.select}
+          >
+            {/* Opções Fixas no Topo */}
+            <option value="TODOS">Todos</option>
+            <option value="100">100% (Concluído)</option>
+            <option value="1_99">1% a 99% (Em Andamento)</option>
+            <option value="0">0% (Não Iniciado)</option>
 
-                let confereProgresso = true;
-                if (progressoFiltro === '100') {
-                    confereProgresso = (f.score === 100);
-                } else if (progressoFiltro === 'parcial') {
-                    confereProgresso = (f.score > 0 && f.score < 100);
-                } else if (progressoFiltro === '0') {
-                    confereProgresso = (f.score === 0);
-                }
+            {/* Divisória se existirem porcentagens parciais no banco */}
+            {porcentagensUnicas.length > 0 && (
+              <option disabled>───────────────</option>
+            )}
 
-                return confereBusca && confereStatus && confereProgresso;
-            });
+            {/* Opções Dinâmicas Sem Repetição */}
+            {porcentagensUnicas.map((pct) => (
+              <option key={pct} value={String(pct)}>
+                {pct}%
+              </option>
+            ))}
+          </select>
+        </div>
 
-            renderizarTabela(filtrados);
-        };
+        {/* Filtro País */}
+        <div style={estilos.grupoFiltro}>
+          <label style={estilos.labelFiltro}>País</label>
+          <select
+            value={filtroPais}
+            onChange={(e) => setFiltroPais(e.target.value)}
+            style={estilos.select}
+          >
+            <option value="TODOS">Todos</option>
+            {paisesUnicos.map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+        </div>
+      </section>
 
-        // ====================================================================
-        // 3. UPLOAD DE ARQUIVOS (Integrado via Fila no Supabase)
-        // ====================================================================
-        window.abrirSeletor = function(idFornecedor, nomeFornecedor, abaDestino, linhaBase, colStatus) {
-            uploadTempData = { idFornecedor, nomeFornecedor, abaDestino, linhaBase, colStatus };
-            document.getElementById('arquivo-upload').click();
-        };
+      {/* ESTADO DE CARREGAMENTO / ERROS */}
+      {carregando && <p style={estilos.aviso}>⏳ Carregando dados sincronizados...</p>}
+      {erro && <p style={{ ...estilos.aviso, color: '#e74c3c' }}>❌ {erro}</p>}
 
-        window.processarUpload = function(input) {
-            const arquivo = input.files[0];
-            if (!arquivo) return;
+      {/* LISTAGEM DE FORNECEDORES */}
+      {!carregando && !erro && (
+        <div style={estilos.grid}>
+          {fornecedoresFiltrados.length === 0 ? (
+            <p style={estilos.aviso}>Nenhum fornecedor encontrado para este filtro.</p>
+          ) : (
+            fornecedoresFiltrados.map((fornecedor) => (
+              <div key={fornecedor.id} style={estilos.card}>
+                <div style={estilos.cardTopo}>
+                  <div>
+                    <h3 style={estilos.nomeFornecedor}>{fornecedor.nome}</h3>
+                    <span style={estilos.sapBadge}>SAP: {fornecedor.id}</span>
+                    <span style={estilos.paisBadge}>🌍 {fornecedor.pais}</span>
+                  </div>
+                  <div style={estilos.scoreContainer}>
+                    <span style={{
+                      ...estilos.scoreTexto,
+                      color: fornecedor.score === 100 ? '#2ecc71' : fornecedor.score === 0 ? '#e74c3c' : '#f39c12'
+                    }}>
+                      {fornecedor.score}%
+                    </span>
+                    <span style={estilos.scoreLabel}>Conformidade</span>
+                  </div>
+                </div>
 
-            document.getElementById('loading-text').innerText = 'A enviar arquivo para a fila...';
-            document.getElementById('loading-overlay').style.display = 'flex';
+                <hr style={estilos.divisor} />
+
+                {/* Lista de Documentos (Apenas os Aplicáveis) */}
+                <div style={estilos.listaDocs}>
+                  {fornecedor.documentos && fornecedor.documentos.map((doc, idx) => (
+                    <div key={idx} style={estilos.docItem}>
+                      <div style={estilos.docInfo}>
+                        <span style={estilos.docNome}>{doc.nome}</span>
+                        <span style={{ ...estilos.statusBadge, backgroundColor: doc.cor }}>
+                          {doc.status}
+                        </span>
+                      </div>
+
+                      <div style={estilos.docAcoes}>
+                        {doc.link && (
+                          <a href={doc.link} target="_blank" rel="noreferrer" style={estilos.botaoLink}>
+                            🔗 Visualizar
+                          </a>
+                        )}
+                        {/* Botão de Anexo se tiver linhaBase > 0 */}
+                        {doc.linhaBase && doc.linhaBase > 0 && (
+                          <button
+                            onClick={() => {
+                              setFornecedorSelecionado(fornecedor);
+                              setDocSelecionado(doc);
+                            }}
+                            style={estilos.botaoUpload}
+                          >
+                            📤 Atualizar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* MODAL DE UPLOAD */}
+      {fornecedorSelecionado && docSelecionado && (
+        <div style={estilos.modalOverlay}>
+          <div style={estilos.modalBox}>
+            <h2>Anexar Novo Certificado</h2>
+            <p><strong>Fornecedor:</strong> {fornecedorSelecionado.nome}</p>
+            <p><strong>Documento:</strong> {docSelecionado.nome}</p>
             
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const base64Data = e.target.result.split(',')[1];
-                
-                // Pacote completo com dados do arquivo + contexto da planilha
-                const pacoteUpload = { 
-                    nomeArquivo: arquivo.name, 
-                    mimeType: arquivo.type, 
-                    base64: base64Data, 
-                    ...uploadTempData 
-                };
-                
-                // Envia direto para a tabela fila_uploads do Supabase
-                const urlFila = "https://jlheqyylcrczdkwucycj.supabase.co/rest/v1/fila_uploads";
-                
-                fetch(urlFila, {
-                    method: 'POST',
-                    headers: {
-                        'apikey': supabaseKey,
-                        'Authorization': 'Bearer ' + supabaseKey,
-                        'Content-Type': 'application/json',
-                        'Prefer': 'return=minimal'
-                    },
-                    body: JSON.stringify({
-                        pacote: pacoteUpload,
-                        processado: false
-                    })
-                })
-                .then(res => {
-                    document.getElementById('loading-overlay').style.display = 'none';
-                    if(res.ok) {
-                        alert("✅ Arquivo enviado para processamento!\nO Google Apps Script irá salvá-lo no Drive e atualizar a planilha em até 5 minutos.");
-                        input.value = ""; // Limpa a seleção do arquivo
-                    } else {
-                        throw new Error("Erro na resposta do servidor Supabase.");
-                    }
-                })
-                .catch(err => {
-                    document.getElementById('loading-overlay').style.display = 'none';
-                    alert("❌ Erro ao enviar o arquivo para a fila: " + err.message);
-                });
-            };
+            <form onSubmit={handleUpload} style={{ marginTop: '15px' }}>
+              <input
+                type="file"
+                required
+                onChange={(e) => setArquivo(e.target.files[0])}
+                style={{ marginBottom: '15px', display: 'block' }}
+              />
+              <div style={estilos.modalBotoes}>
+                <button type="submit" disabled={enviando} style={estilos.botaoEnviar}>
+                  {enviando ? "Enviando..." : "Confirmar Envio"}
+                </button>
+                <button
+                  type="button"
+                  disabled={enviando}
+                  onClick={() => {
+                    setFornecedorSelecionado(null);
+                    setDocSelecionado(null);
+                    setArquivo(null);
+                  }}
+                  style={estilos.botaoCancelar}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
-            reader.onerror = function() {
-                document.getElementById('loading-overlay').style.display = 'none';
-                alert("❌ Erro ao ler o arquivo local.");
-            };
-
-            reader.readAsDataURL(arquivo);
-        };
-    </script>
-</body>
-</html>
+// =========================================================================
+// 5. ESTILOS (CSS in JS)
+// =========================================================================
+const estilos = {
+  container: {
+    fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif',
+    maxWidth: '1200px',
+    margin: '0 auto',
+    padding: '20px',
+    color: '#333',
+    backgroundColor: '#f8f9fa',
+    minHeight: '100vh'
+  },
+  header: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    padding: '20px',
+    borderRadius: '8px',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+    marginBottom: '20px'
+  },
+  titulo: { margin: 0, fontSize: '24px', color: '#1a365d' },
+  subtitulo: { margin: '5px 0 0', fontSize: '14px', color: '#718096' },
+  botaoPlanilha: {
+    padding: '10px 15px',
+    backgroundColor: '#2b6cb0',
+    color: '#fff',
+    textDecoration: 'none',
+    borderRadius: '6px',
+    fontWeight: 'bold',
+    fontSize: '14px'
+  },
+  secaoFiltros: {
+    display: 'flex',
+    gap: '15px',
+    backgroundColor: '#fff',
+    padding: '15px 20px',
+    borderRadius: '8px',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+    marginBottom: '20px',
+    flexWrap: 'wrap'
+  },
+  grupoFiltro: { display: 'flex', flexDirection: 'column', flex: '1', minWidth: '200px' },
+  labelFiltro: { fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' },
+  input: {
+    padding: '8px 12px',
+    borderRadius: '4px',
+    border: '1px solid #cbd5e0',
+    fontSize: '14px'
+  },
+  select: {
+    padding: '8px 12px',
+    borderRadius: '4px',
+    border: '1px solid #cbd5e0',
+    fontSize: '14px',
+    backgroundColor: '#fff'
+  },
+  aviso: { textAlign: 'center', fontSize: '16px', margin: '40px 0', color: '#718096' },
+  grid: { display: 'flex', flexDirection: 'column', gap: '15px' },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: '8px',
+    padding: '20px',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+  },
+  cardTopo: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' },
+  nomeFornecedor: { margin: '0 0 8px 0', fontSize: '18px', color: '#2d3748' },
+  sapBadge: {
+    fontSize: '12px',
+    backgroundColor: '#edf2f7',
+    color: '#4a5568',
+    padding: '4px 8px',
+    borderRadius: '4px',
+    marginRight: '8px',
+    fontWeight: '600'
+  },
+  paisBadge: { fontSize: '12px', color: '#718096' },
+  scoreContainer: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end' },
+  scoreTexto: { fontSize: '24px', fontWeight: 'bold' },
+  scoreLabel: { fontSize: '11px', color: '#718096', textTransform: 'uppercase' },
+  divisor: { border: 'none', borderTop: '1px solid #e2e8f0', margin: '15px 0' },
+  listaDocs: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '12px' },
+  docItem: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '10px',
+    backgroundColor: '#f7fafc',
+    borderRadius: '6px',
+    border: '1px solid #edf2f7'
+  },
+  docInfo: { display: 'flex', flexDirection: 'column', gap: '4px' },
+  docNome: { fontSize: '13px', fontWeight: '600', color: '#2d3748' },
+  statusBadge: {
+    fontSize: '11px',
+    color: '#fff',
+    padding: '2px 6px',
+    borderRadius: '4px',
+    display: 'inline-block',
+    width: 'fit-content',
+    fontWeight: 'bold'
+  },
+  docAcoes: { display: 'flex', gap: '8px' },
+  botaoLink: {
+    fontSize: '12px',
+    padding: '6px 10px',
+    backgroundColor: '#edf2f7',
+    color: '#2b6cb0',
+    textDecoration: 'none',
+    borderRadius: '4px',
+    fontWeight: 'bold'
+  },
+  botaoUpload: {
+    fontSize: '12px',
+    padding: '6px 10px',
+    backgroundColor: '#319795',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontWeight: 'bold'
+  },
+  modalOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000
+  },
+  modalBox: {
+    backgroundColor: '#fff',
+    padding: '25px',
+    borderRadius: '8px',
+    width: '100%',
+    maxWidth: '450px',
+    boxShadow: '0 10px 25px rgba(0,0,0,0.1)'
+  },
+  modalBotoes: { display: 'flex', gap: '10px', justifyContent: 'flex-end' },
+  botaoEnviar: {
+    padding: '8px 16px',
+    backgroundColor: '#3182ce',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontWeight: 'bold'
+  },
+  botaoCancelar: {
+    padding: '8px 16px',
+    backgroundColor: '#e2e8f0',
+    color: '#4a5568',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontWeight: 'bold'
+  }
+};
