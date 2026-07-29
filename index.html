@@ -274,42 +274,48 @@
     const elModal = document.getElementById('modal-upload');
 
     // =========================================================================
-    // REGRA DE CONFORMIDADE REFORÇADA (BLINDADA PARA NÚMEROS E TEXTOS)
+    // VALIDAÇÃO IMPLACÁVEL DE CONFORMIDADE (RESOLVE O CASO DO 896 DA BEVI)
     // =========================================================================
     function verificarSeConforme(statusCelula) {
-      if (!statusCelula && statusCelula !== 0) return false;
+      if (statusCelula === null || statusCelula === undefined) return false;
+      
       const str = String(statusCelula).trim();
       const sUp = str.toUpperCase();
 
-      // 1. Textos claros de conformidade / aprovação (Prioridade Alta)
+      // 1. Prioridade Máxima: Se contiver QUALQUER número positivo (ex: "896", " 896 ", "Validade: 896")
+      // Remove tudo o que não for número, sinal ou ponto para ver se é um número > 0
+      const apenasNumeros = str.replace(/[^0-9.-]+/g, "");
+      if (apenasNumeros !== "" && !isNaN(Number(apenasNumeros))) {
+        if (Number(apenasNumeros) > 0) {
+          return true; // É número positivo! Conforme (Verde) na hora!
+        }
+      }
+
+      // 2. Termos positivos claros
       if (
         sUp.includes('ATUALIZADO') || 
         sUp.includes('OK') || 
         sUp.includes('APROVADO') || 
         sUp.includes('VÁLIDO') || 
-        sUp.includes('VALIDO') ||
-        sUp.includes('CONFORME')
+        sUp.includes('VALIDO') || 
+        sUp.includes('CONFORME') ||
+        sUp === 'SIM'
       ) {
         return true;
       }
       
-      // 2. Textos claros de pendência ou atraso
+      // 3. Termos negativos ou atrasados
       if (
-        sUp === 'PENDENTE' ||
+        sUp.includes('PENDENTE') || 
         sUp.includes('NOK') || 
         sUp.includes('ATRASADO') || 
         sUp.includes('SOLICITAR') || 
-        sUp.includes('VENCIDO') ||
-        sUp.includes('EXPIRADO')
+        sUp.includes('VENCIDO') || 
+        sUp.includes('EXPIRADO') ||
+        sUp === 'NÃO' ||
+        sUp === 'NAO'
       ) {
         return false;
-      }
-
-      // 3. Se for NÚMERO (ou string numérica, ex: "896" ou " 896 "): 
-      // Positivo (> 0) = Conforme (Verde) | Negativo/Zero = Atrasado (Vermelho)
-      const numTentativa = Number(str);
-      if (!isNaN(numTentativa) && str !== '') {
-        return numTentativa > 0;
       }
 
       return false;
@@ -450,7 +456,7 @@
             if (str === 'N.A' || str === 'N/A' || str === '-' || str === '') return;
             
             totalDocs++;
-            // Cor do badge e validação agora chamam a mesma função de verificação
+            // Usa a mesma função de validação para pintar o badge
             const isConforme = verificarSeConforme(doc.status);
             const badgeCor = isConforme ? '#2ecc71' : '#e74c3c';
 
