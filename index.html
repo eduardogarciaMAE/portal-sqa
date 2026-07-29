@@ -76,11 +76,14 @@
       border-radius: 8px;
       padding: 20px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      transition: all 0.2s ease;
     }
     .card-topo {
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
     }
     .nome-fornecedor { margin: 0 0 8px 0; font-size: 18px; color: #2d3748; }
     .sap-badge {
@@ -93,15 +96,37 @@
       font-weight: 600;
     }
     .pais-badge { font-size: 12px; color: #718096; }
+    .card-direita { display: flex; align-items: center; gap: 20px; }
     .score-container { display: flex; flex-direction: column; align-items: flex-end; }
     .score-texto { font-size: 24px; font-weight: bold; }
     .score-label { font-size: 11px; color: #718096; text-transform: uppercase; }
-    .divisor { border: none; border-top: 1px solid #e2e8f0; margin: 15px 0; }
+    
+    /* Acordeão (Sanfona) */
+    .btn-expandir {
+      background-color: #edf2f7;
+      border: 1px solid #cbd5e0;
+      color: #2d3748;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background-color 0.2s;
+    }
+    .btn-expandir:hover { background-color: #e2e8f0; }
     .lista-docs {
-      display: grid;
+      display: none; /* Escondido por padrão */
       grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
       gap: 12px;
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 1px solid #e2e8f0;
     }
+    .lista-docs.aberto { display: grid; }
+    
     .doc-item {
       display: flex;
       justify-content: space-between;
@@ -142,7 +167,7 @@
       cursor: pointer;
       font-weight: bold;
     }
-    /* Modal de Upload */
+    /* Modal */
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -183,14 +208,14 @@
 </head>
 <body>
 
-  <!-- CABEÇALHO -->
+  <!-- CABEÇALHO (CORRIGIDO PARA PLANILHA BASE) -->
   <header class="header">
     <div>
       <h1 class="titulo">Portal SQA - Conformidade de Fornecedores</h1>
       <p class="subtitulo">Acompanhamento de certificados e auditorias</p>
     </div>
     <a id="btn-planilha" href="#" target="_blank" class="botao-planilha" style="display:none;">
-      📄 Ver Planilha Master
+      📄 Ver Planilha Base
     </a>
   </header>
 
@@ -209,7 +234,6 @@
         <option value="100">100% (Concluído)</option>
         <option value="1_99">1% a 99% (Em Andamento)</option>
         <option value="0">0% (Não Iniciado)</option>
-        <!-- Opções de porcentagens dinâmicas entram via JS -->
       </select>
     </div>
 
@@ -217,7 +241,6 @@
       <label class="label-filtro" for="filtro-pais">País</label>
       <select id="filtro-pais" class="select">
         <option value="TODOS">Todos</option>
-        <!-- Países entram via JS -->
       </select>
     </div>
   </section>
@@ -243,16 +266,12 @@
   </div>
 
   <script>
-    // =========================================================================
-    // CONFIGURAÇÃO DO SUPABASE E ESTADO GLOBAL
-    // =========================================================================
     const SUPABASE_URL = "https://jlheqyylcrczdkwucycj.supabase.co";
     const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsaGVxeXlsY3JjemRrd3VjeWNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyNTc2MTMsImV4cCI6MjEwMDgzMzYxM30.zQ2C_929ddwBnl-a1eRzLBa08GZ08CZwYcjLNda61XU";
     
     let dadosFornecedores = [];
     let uploadContexto = { fornecedor: null, doc: null };
 
-    // Elementos da DOM
     const elBuscaNome = document.getElementById('busca-nome');
     const elFiltroStatus = document.getElementById('filtro-status');
     const elFiltroPais = document.getElementById('filtro-pais');
@@ -262,7 +281,57 @@
     const elModal = document.getElementById('modal-upload');
 
     // =========================================================================
-    // 1. CARREGAR DADOS DO SUPABASE
+    // REGRA DE STATUS E CONFORMIDADE (BLINDADA PARA NÚMEROS POSITIVOS E TEXTOS)
+    // =========================================================================
+    function verificarSeConforme(statusCelula) {
+      if (!statusCelula) return false;
+      const str = String(statusCelula).trim();
+      const sUp = str.toUpperCase();
+
+      // 1. Se for texto de aprovação clara
+      if (sUp.includes('OK') || sUp.includes('ATUALIZADO') || sUp.includes('APROVADO') || sUp.includes('VÁLIDO') || sUp.includes('VALIDO')) {
+        return true;
+      }
+      
+      // 2. Se for texto que indica pendência clara
+      if (sUp.includes('PENDENTE') || sUp.includes('NOK') || sUp.includes('ATRASADO') || sUp.includes('SOLICITAR') || sUp.includes('VENCIDO')) {
+        return false;
+      }
+
+      // 3. Se for NÚMERO: Positivo > 0 = Conforme (Verde). Negativo < 0 = Atrasado/Vencido (Vermelho)
+      if (!isNaN(Number(str)) && str !== '') {
+        const numero = Number(str);
+        return numero > 0;
+      }
+
+      return false;
+    }
+
+    // Calcula a porcentagem real com base nos documentos APLICÁVEIS exibidos para o fornecedor
+    function calcularScoreReal(forn) {
+      if (!forn.documentos || forn.documentos.length === 0) return 0;
+      
+      let totalAplicaveis = 0;
+      let totalConformes = 0;
+
+      forn.documentos.forEach(doc => {
+        const str = String(doc.status).trim().toUpperCase();
+        // Ignora documentos não aplicáveis no cálculo
+        if (str === 'N.A' || str === 'N/A' || str === '-' || str === '' || str.includes('NÃO FORNECE')) {
+          return;
+        }
+        totalAplicaveis++;
+        if (verificarSeConforme(doc.status)) {
+          totalConformes++;
+        }
+      });
+
+      if (totalAplicaveis === 0) return 100;
+      return Math.round((totalConformes / totalAplicaveis) * 100);
+    }
+
+    // =========================================================================
+    // 1. CARREGAR DADOS
     // =========================================================================
     async function carregarDados() {
       try {
@@ -282,6 +351,11 @@
           const payload = registros[0].json_completo;
           dadosFornecedores = payload.fornecedores || [];
           
+          // Recalcula todos os scores no frontend com precisão matemática absoluta
+          dadosFornecedores.forEach(f => {
+            f.scoreCalculado = calcularScoreReal(f);
+          });
+
           if (payload.urlPlanilha) {
             elBtnPlanilha.href = payload.urlPlanilha;
             elBtnPlanilha.style.display = 'inline-block';
@@ -301,19 +375,17 @@
     }
 
     // =========================================================================
-    // 2. POPULAR OPÇÕES ÚNICAS NOS DROPDOWNS (SEM REPETIÇÕES)
+    // 2. POPULAR OPÇÕES DOS FILTROS
     // =========================================================================
     function popularFiltros(lista) {
-      // Paises Únicos
       const paises = [...new Set(lista.map(f => f.pais || 'N/D').filter(Boolean))].sort();
       elFiltroPais.innerHTML = '<option value="TODOS">Todos</option>';
       paises.forEach(pais => {
         elFiltroPais.innerHTML += `<option value="${pais}">${pais}</option>`;
       });
 
-      // Porcentagens Únicas E existentes (Sem 0% e 100%, para não duplicar com os fixos)
       const porcentagens = [...new Set(
-        lista.map(f => Number(f.score)).filter(val => !isNaN(val) && val > 0 && val < 100)
+        lista.map(f => f.scoreCalculado).filter(val => !isNaN(val) && val > 0 && val < 100)
       )].sort((a, b) => b - a);
 
       let htmlStatus = `
@@ -334,7 +406,7 @@
     }
 
     // =========================================================================
-    // 3. LÓGICA DE FILTRAGEM E RENDERIZAÇÃO DA TELA
+    // 3. RENDERIZAÇÃO DA TELA (COM ACORDEÃO E BADGES CORRETAS)
     // =========================================================================
     function renderizarLista() {
       const termo = elBuscaNome.value.trim().toLowerCase();
@@ -342,23 +414,17 @@
       const paisSel = elFiltroPais.value;
 
       const filtrados = dadosFornecedores.filter(forn => {
-        const score = Number(forn.score) || 0;
+        const score = forn.scoreCalculado;
 
-        // A. Filtro Status Unificado
         if (statusSel !== 'TODOS') {
           if (statusSel === '100' && score !== 100) return false;
           if (statusSel === '1_99' && (score < 1 || score >= 100)) return false;
           if (statusSel === '0' && score !== 0) return false;
-          
-          if (!['100', '1_99', '0'].includes(statusSel) && String(score) !== statusSel) {
-            return false;
-          }
+          if (!['100', '1_99', '0'].includes(statusSel) && String(score) !== statusSel) return false;
         }
 
-        // B. Filtro País
         if (paisSel !== 'TODOS' && forn.pais !== paisSel) return false;
 
-        // C. Busca por Nome ou SAP
         if (termo !== '') {
           const nome = String(forn.nome || '').toLowerCase();
           const sap = String(forn.id || '').toLowerCase();
@@ -375,21 +441,31 @@
         return;
       }
 
-      filtrados.forEach(forn => {
-        const scoreCor = forn.score === 100 ? '#2ecc71' : forn.score === 0 ? '#e74c3c' : '#f39c12';
+      filtrados.forEach((forn, idxCard) => {
+        const score = forn.scoreCalculado;
+        const scoreCor = score === 100 ? '#2ecc71' : score === 0 ? '#e74c3c' : '#f39c12';
 
         let cardsDocs = '';
+        let totalDocs = 0;
+
         if (forn.documentos && forn.documentos.length > 0) {
-          forn.documentos.forEach((doc, idx) => {
+          forn.documentos.forEach((doc, idxDoc) => {
+            const str = String(doc.status).trim().toUpperCase();
+            if (str === 'N.A' || str === 'N/A' || str === '-' || str === '') return; // Oculta inativos
+            
+            totalDocs++;
+            // Cor do badge: Verde se é Conforme (incluindo números positivos como 229, 170), Vermelho caso contrário
+            const badgeCor = verificarSeConforme(doc.status) ? '#2ecc71' : '#e74c3c';
+
             const btnLink = doc.link ? `<a href="${doc.link}" target="_blank" class="botao-link">🔗 Visualizar</a>` : '';
             const btnUp = (doc.linhaBase && doc.linhaBase > 0) ? 
-              `<button onclick="abrirModal('${forn.id}', ${idx})" class="botao-upload">📤 Atualizar</button>` : '';
+              `<button onclick="abrirModal('${forn.id}', ${idxDoc}); event.stopPropagation();" class="botao-upload">📤 Atualizar</button>` : '';
 
             cardsDocs += `
               <div class="doc-item">
                 <div class="doc-info">
                   <span class="doc-nome">${doc.nome}</span>
-                  <span class="status-badge" style="background-color: ${doc.cor};">${doc.status}</span>
+                  <span class="status-badge" style="background-color: ${badgeCor};">${doc.status}</span>
                 </div>
                 <div class="doc-acoes">
                   ${btnLink}
@@ -402,19 +478,26 @@
 
         const cartaoHtml = `
           <div class="card">
-            <div class="card-topo">
+            <div class="card-topo" onclick="toggleAcordeao('lista-doc-${idxCard}', 'btn-exp-${idxCard}')">
               <div>
                 <h3 class="nome-fornecedor">${forn.nome}</h3>
                 <span class="sap-badge">SAP: ${forn.id}</span>
                 <span class="pais-badge">🌍 ${forn.pais || 'N/D'}</span>
               </div>
-              <div class="score-container">
-                <span class="score-texto" style="color: ${scoreCor};">${forn.score}%</span>
-                <span class="score-label">Conformidade</span>
+              <div class="card-direita">
+                <div class="score-container">
+                  <span class="score-texto" style="color: ${scoreCor};">${score}%</span>
+                  <span class="score-label">Conformidade</span>
+                </div>
+                <!-- BOTÃO SANFONA EXPANDIR/RECOLHER -->
+                <button id="btn-exp-${idxCard}" type="button" class="btn-expandir">
+                  ▼ Expandir (${totalDocs})
+                </button>
               </div>
             </div>
-            <hr class="divisor" />
-            <div class="lista-docs">
+            
+            <!-- LISTA ACORDEÃO (ESCONDIDA ATÉ CLICAR) -->
+            <div id="lista-doc-${idxCard}" class="lista-docs">
               ${cardsDocs}
             </div>
           </div>
@@ -425,7 +508,25 @@
     }
 
     // =========================================================================
-    // 4. MODAL DE UPLOAD E ENVIO PARA FILA SUPABASE
+    // 4. ABRIR / FECHAR ACORDEÃO (SANFONA)
+    // =========================================================================
+    function toggleAcordeao(idLista, idBotao) {
+      const elLista = document.getElementById(idLista);
+      const elBtn = document.getElementById(idBotao);
+      if (!elLista || !elBtn) return;
+
+      const estaAberto = elLista.classList.contains('aberto');
+      if (estaAberto) {
+        elLista.classList.remove('aberto');
+        elBtn.innerHTML = elBtn.innerHTML.replace('▲ Recolher', '▼ Expandir');
+      } else {
+        elLista.classList.add('aberto');
+        elBtn.innerHTML = elBtn.innerHTML.replace('▼ Expandir', '▲ Recolher');
+      }
+    }
+
+    // =========================================================================
+    // 5. MODAL DE UPLOAD
     // =========================================================================
     function abrirModal(idSap, docIndex) {
       const forn = dadosFornecedores.find(f => String(f.id) === String(idSap));
@@ -497,14 +598,10 @@
       reader.readAsDataURL(arquivo);
     });
 
-    // =========================================================================
-    // EVENTOS DE ESCUTA DOS FILTROS
-    // =========================================================================
     elBuscaNome.addEventListener('input', renderizarLista);
     elFiltroStatus.addEventListener('change', renderizarLista);
     elFiltroPais.addEventListener('change', renderizarLista);
 
-    // Iniciar aplicação
     carregarDados();
   </script>
 </body>
