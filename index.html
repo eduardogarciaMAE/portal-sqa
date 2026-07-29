@@ -1,537 +1,511 @@
-import React, { useState, useEffect, useMemo } from 'react';
-
-// =========================================================================
-// PORTAL SQA - FRONTEND INTEGRADO COM SUPABASE E FILTROS INTELIGENTES
-// =========================================================================
-export default function App() {
-  const [fornecedores, setFornecedores] = useState([]);
-  const [urlPlanilha, setUrlPlanilha] = useState('');
-  const [carregando, setCarregando] = useState(true);
-  const [erro, setErro] = useState(null);
-
-  // --- ESTADOS DOS FILTROS ---
-  const [buscaNome, setBuscaNome] = useState('');
-  const [filtroStatus, setFiltroStatus] = useState('TODOS');
-  const [filtroPais, setFiltroPais] = useState('TODOS');
-  
-  // --- ESTADO PARA MODAL DE UPLOAD ---
-  const [fornecedorSelecionado, setFornecedorSelecionado] = useState(null);
-  const [docSelecionado, setDocSelecionado] = useState(null);
-  const [arquivo, setArquivo] = useState(null);
-  const [enviando, setEnviando] = useState(false);
-
-  // =========================================================================
-  // 1. BUSCA DADOS DO BANCO SUPABASE
-  // =========================================================================
-  const fetchDadosSupabase = async () => {
-    setCarregando(true);
-    setErro(null);
-    const urlSupabase = "https://jlheqyylcrczdkwucycj.supabase.co/rest/v1/api_dados?id=eq.1&select=*";
-    const apiKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsaGVxeXlsY3JjemRrd3VjeWNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyNTc2MTMsImV4cCI6MjEwMDgzMzYxM30.zQ2C_929ddwBnl-a1eRzLBa08GZ08CZwYcjLNda61XU";
-
-    try {
-      const resposta = await fetch(urlSupabase, {
-        method: 'GET',
-        headers: {
-          'apikey': apiKey,
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!resposta.ok) {
-        throw new Error(`Erro na API: ${resposta.status}`);
-      }
-
-      const registros = await resposta.json();
-      if (registros && registros.length > 0 && registros[0].json_completo) {
-        const payload = registros[0].json_completo;
-        setFornecedores(payload.fornecedores || []);
-        setUrlPlanilha(payload.urlPlanilha || '');
-      } else {
-        setFornecedores([]);
-      }
-    } catch (e) {
-      console.error("Erro ao buscar dados:", e);
-      setErro("Falha ao carregar dados do sistema. Tente recarregar a página.");
-    } finally {
-      setCarregando(false);
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portal SQA - Conformidade de Fornecedores</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      color: #333;
+      background-color: #f8f9fa;
     }
-  };
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background-color: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      margin-bottom: 20px;
+    }
+    .titulo { margin: 0; font-size: 24px; color: #1a365d; }
+    .subtitulo { margin: 5px 0 0; font-size: 14px; color: #718096; }
+    .botao-planilha {
+      padding: 10px 15px;
+      background-color: #2b6cb0;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 6px;
+      font-weight: bold;
+      font-size: 14px;
+    }
+    .secao-filtros {
+      display: flex;
+      gap: 15px;
+      background-color: #fff;
+      padding: 15px 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .grupo-filtro {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-width: 200px;
+    }
+    .label-filtro {
+      font-size: 12px;
+      font-weight: bold;
+      margin-bottom: 5px;
+      color: #4a5568;
+    }
+    .input, .select {
+      padding: 8px 12px;
+      border-radius: 4px;
+      border: 1px solid #cbd5e0;
+      font-size: 14px;
+      background-color: #fff;
+    }
+    .aviso {
+      text-align: center;
+      font-size: 16px;
+      margin: 40px 0;
+      color: #718096;
+    }
+    .grid { display: flex; flex-direction: column; gap: 15px; }
+    .card {
+      background-color: #fff;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .card-topo {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+    .nome-fornecedor { margin: 0 0 8px 0; font-size: 18px; color: #2d3748; }
+    .sap-badge {
+      font-size: 12px;
+      background-color: #edf2f7;
+      color: #4a5568;
+      padding: 4px 8px;
+      border-radius: 4px;
+      margin-right: 8px;
+      font-weight: 600;
+    }
+    .pais-badge { font-size: 12px; color: #718096; }
+    .score-container { display: flex; flex-direction: column; align-items: flex-end; }
+    .score-texto { font-size: 24px; font-weight: bold; }
+    .score-label { font-size: 11px; color: #718096; text-transform: uppercase; }
+    .divisor { border: none; border-top: 1px solid #e2e8f0; margin: 15px 0; }
+    .lista-docs {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 12px;
+    }
+    .doc-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px;
+      background-color: #f7fafc;
+      border-radius: 6px;
+      border: 1px solid #edf2f7;
+    }
+    .doc-info { display: flex; flex-direction: column; gap: 4px; }
+    .doc-nome { font-size: 13px; font-weight: 600; color: #2d3748; }
+    .status-badge {
+      font-size: 11px;
+      color: #fff;
+      padding: 2px 6px;
+      border-radius: 4px;
+      display: inline-block;
+      width: fit-content;
+      font-weight: bold;
+    }
+    .doc-acoes { display: flex; gap: 8px; }
+    .botao-link {
+      font-size: 12px;
+      padding: 6px 10px;
+      background-color: #edf2f7;
+      color: #2b6cb0;
+      text-decoration: none;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+    .botao-upload {
+      font-size: 12px;
+      padding: 6px 10px;
+      background-color: #319795;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    /* Modal de Upload */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(0,0,0,0.5);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    .modal-box {
+      background-color: #fff;
+      padding: 25px;
+      border-radius: 8px;
+      width: 100%;
+      max-width: 450px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    }
+    .modal-botoes { display: flex; gap: 10px; justify-content: flex-end; margin-top: 15px; }
+    .botao-enviar {
+      padding: 8px 16px;
+      background-color: #3182ce;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .botao-cancelar {
+      padding: 8px 16px;
+      background-color: #e2e8f0;
+      color: #4a5568;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
 
-  useEffect(() => {
-    fetchDadosSupabase();
-  }, []);
+  <!-- CABEÇALHO -->
+  <header class="header">
+    <div>
+      <h1 class="titulo">Portal SQA - Conformidade de Fornecedores</h1>
+      <p class="subtitulo">Acompanhamento de certificados e auditorias</p>
+    </div>
+    <a id="btn-planilha" href="#" target="_blank" class="botao-planilha" style="display:none;">
+      📄 Ver Planilha Master
+    </a>
+  </header>
 
-  // =========================================================================
-  // 2. EXTRAÇÃO DE VALORES ÚNICOS PARA OS DROPDOWNS DO FILTRO
-  // =========================================================================
+  <!-- FILTROS -->
+  <section class="secao-filtros">
+    <div class="grupo-filtro">
+      <label class="label-filtro" for="busca-nome">Buscar Fornecedor / SAP</label>
+      <input id="busca-nome" type="text" class="input" placeholder="Digite nome ou SAP..." />
+    </div>
 
-  // Países únicos existentes no banco
-  const paisesUnicos = useMemo(() => {
-    const lista = fornecedores.map(f => f.pais || 'N/D').filter(Boolean);
-    return [...new Set(lista)].sort();
-  }, [fornecedores]);
+    <!-- Filtro de STATUS unificado -->
+    <div class="grupo-filtro">
+      <label class="label-filtro" for="filtro-status">Status</label>
+      <select id="filtro-status" class="select">
+        <option value="TODOS">Todos</option>
+        <option value="100">100% (Concluído)</option>
+        <option value="1_99">1% a 99% (Em Andamento)</option>
+        <option value="0">0% (Não Iniciado)</option>
+        <!-- Opções de porcentagens dinâmicas entram via JS -->
+      </select>
+    </div>
 
-  // Porcentagens únicas E existentes no banco (Sem repetição, sem 0% e 100%)
-  const porcentagensUnicas = useMemo(() => {
-    const lista = fornecedores
-      .map(f => Number(f.score))
-      .filter(val => !isNaN(val) && val > 0 && val < 100);
+    <div class="grupo-filtro">
+      <label class="label-filtro" for="filtro-pais">País</label>
+      <select id="filtro-pais" class="select">
+        <option value="TODOS">Todos</option>
+        <!-- Países entram via JS -->
+      </select>
+    </div>
+  </section>
+
+  <!-- MENSAGENS E LISTA -->
+  <div id="mensagem-status" class="aviso">⏳ Carregando dados sincronizados...</div>
+  <div id="grid-fornecedores" class="grid"></div>
+
+  <!-- MODAL DE UPLOAD -->
+  <div id="modal-upload" class="modal-overlay">
+    <div class="modal-box">
+      <h2>Anexar Novo Certificado</h2>
+      <p><strong>Fornecedor:</strong> <span id="modal-fornecedor-nome"></span></p>
+      <p><strong>Documento:</strong> <span id="modal-doc-nome"></span></p>
+      <form id="form-upload" style="margin-top: 15px;">
+        <input id="input-arquivo" type="file" required style="margin-bottom: 15px; display: block;" />
+        <div class="modal-botoes">
+          <button id="btn-enviar" type="submit" class="botao-enviar">Confirmar Envio</button>
+          <button id="btn-cancelar" type="button" class="botao-cancelar">Cancelar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // CONFIGURAÇÃO DO SUPABASE E ESTADO GLOBAL
+    // =========================================================================
+    const SUPABASE_URL = "https://jlheqyylcrczdkwucycj.supabase.co";
+    const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsaGVxeXlsY3JjemRrd3VjeWNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyNTc2MTMsImV4cCI6MjEwMDgzMzYxM30.zQ2C_929ddwBnl-a1eRzLBa08GZ08CZwYcjLNda61XU";
     
-    // Set garante zero duplicação
-    return [...new Set(lista)].sort((a, b) => b - a);
-  }, [fornecedores]);
+    let dadosFornecedores = [];
+    let uploadContexto = { fornecedor: null, doc: null };
 
-  // =========================================================================
-  // 3. LÓGICA DE FILTRAGEM DOS FORNECEDORES
-  // =========================================================================
-  const fornecedoresFiltrados = useMemo(() => {
-    return fornecedores.filter((fornecedor) => {
-      const score = Number(fornecedor.score) || 0;
+    // Elementos da DOM
+    const elBuscaNome = document.getElementById('busca-nome');
+    const elFiltroStatus = document.getElementById('filtro-status');
+    const elFiltroPais = document.getElementById('filtro-pais');
+    const elGrid = document.getElementById('grid-fornecedores');
+    const elMsg = document.getElementById('mensagem-status');
+    const elBtnPlanilha = document.getElementById('btn-planilha');
+    const elModal = document.getElementById('modal-upload');
 
-      // --- A. FILTRO DE STATUS UNIFICADO ---
-      if (filtroStatus !== 'TODOS') {
-        if (filtroStatus === '100' && score !== 100) return false;
-        if (filtroStatus === '1_99' && (score < 1 || score >= 100)) return false;
-        if (filtroStatus === '0' && score !== 0) return false;
-        
-        // Se escolheu uma porcentagem dinâmica exata (ex: "89", "16")
-        if (
-          !['100', '1_99', '0'].includes(filtroStatus) &&
-          String(score) !== filtroStatus
-        ) {
-          return false;
-        }
-      }
-
-      // --- B. FILTRO DE PAÍS ---
-      if (filtroPais !== 'TODOS' && fornecedor.pais !== filtroPais) {
-        return false;
-      }
-
-      // --- C. BUSCA POR NOME OU SAP ---
-      if (buscaNome.trim() !== '') {
-        const termo = buscaNome.trim().toLowerCase();
-        const nome = String(fornecedor.nome || '').toLowerCase();
-        const sap = String(fornecedor.id || '').toLowerCase();
-        if (!nome.includes(termo) && !sap.includes(termo)) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-  }, [fornecedores, filtroStatus, filtroPais, buscaNome]);
-
-  // =========================================================================
-  // 4. ENVIO DE ARQUIVO (FILA SUPABASE -> GAS)
-  // =========================================================================
-  const handleUpload = async (e) => {
-    e.preventDefault();
-    if (!arquivo || !fornecedorSelecionado || !docSelecionado) return;
-
-    setEnviando(true);
-    const reader = new FileReader();
-
-    reader.onload = async () => {
-      const base64Full = reader.result;
-      const base64Clean = base64Full.split(',')[1];
-
-      const pacoteUpload = {
-        idFornecedor: fornecedorSelecionado.id,
-        nomeFornecedor: fornecedorSelecionado.nome,
-        nomeArquivo: arquivo.name,
-        mimeType: arquivo.type || "application/pdf",
-        base64: base64Clean,
-        abaDestino: docSelecionado.abaDestino,
-        linhaBase: docSelecionado.linhaBase,
-        colStatus: docSelecionado.colStatus
-      };
-
-      const urlFila = "https://jlheqyylcrczdkwucycj.supabase.co/rest/v1/fila_uploads";
-      const apiKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsaGVxeXlsY3JjemRrd3VjeWNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyNTc2MTMsImV4cCI6MjEwMDgzMzYxM30.zQ2C_929ddwBnl-a1eRzLBa08GZ08CZwYcjLNda61XU";
-
+    // =========================================================================
+    // 1. CARREGAR DADOS DO SUPABASE
+    // =========================================================================
+    async function carregarDados() {
       try {
-        const resp = await fetch(urlFila, {
-          method: 'POST',
+        const resposta = await fetch(`${SUPABASE_URL}/rest/v1/api_dados?id=eq.1&select=*`, {
+          method: 'GET',
           headers: {
-            'apikey': apiKey,
-            'Authorization': `Bearer ${apiKey}`,
+            'apikey': API_KEY,
+            'Authorization': `Bearer ${API_KEY}`,
             'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            pacote: pacoteUpload,
-            processado: false
-          })
+          }
         });
 
-        if (resp.ok) {
-          alert("Arquivo enviado com sucesso! O sistema atualizará o status em alguns minutos.");
-          setFornecedorSelecionado(null);
-          setDocSelecionado(null);
-          setArquivo(null);
+        if (!resposta.ok) throw new Error(`Erro API: ${resposta.status}`);
+
+        const registros = await resposta.json();
+        if (registros && registros.length > 0 && registros[0].json_completo) {
+          const payload = registros[0].json_completo;
+          dadosFornecedores = payload.fornecedores || [];
+          
+          if (payload.urlPlanilha) {
+            elBtnPlanilha.href = payload.urlPlanilha;
+            elBtnPlanilha.style.display = 'inline-block';
+          }
+
+          popularFiltros(dadosFornecedores);
+          renderizarLista();
+          elMsg.style.display = 'none';
         } else {
-          alert("Erro ao enviar o arquivo. Tente novamente.");
+          elMsg.textContent = "Nenhum dado cadastrado no sistema.";
         }
-      } catch (err) {
-        console.error("Erro upload:", err);
-        alert("Erro de conexão ao enviar o arquivo.");
-      } finally {
-        setEnviando(false);
+      } catch (erro) {
+        console.error("Erro ao carregar:", erro);
+        elMsg.textContent = "❌ Falha ao carregar dados. Tente recarregar a página.";
+        elMsg.style.color = "#e74c3c";
       }
-    };
+    }
 
-    reader.readAsDataURL(arquivo);
-  };
+    // =========================================================================
+    // 2. POPULAR OPÇÕES ÚNICAS NOS DROPDOWNS (SEM REPETIÇÕES)
+    // =========================================================================
+    function popularFiltros(lista) {
+      // Paises Únicos
+      const paises = [...new Set(lista.map(f => f.pais || 'N/D').filter(Boolean))].sort();
+      elFiltroPais.innerHTML = '<option value="TODOS">Todos</option>';
+      paises.forEach(pais => {
+        elFiltroPais.innerHTML += `<option value="${pais}">${pais}</option>`;
+      });
 
-  // =========================================================================
-  // RENDERIZAÇÃO DA TELA
-  // =========================================================================
-  return (
-    <div style={estilos.container}>
-      {/* CABEÇALHO */}
-      <header style={estilos.header}>
-        <div>
-          <h1 style={estilos.titulo}>Portal SQA - Conformidade de Fornecedores</h1>
-          <p style={estilos.subtitulo}>Acompanhamento de certificados e auditorias</p>
-        </div>
-        {urlPlanilha && (
-          <a href={urlPlanilha} target="_blank" rel="noreferrer" style={estilos.botaoPlanilha}>
-            📄 Ver Planilha Master
-          </a>
-        )}
-      </header>
+      // Porcentagens Únicas E existentes (Sem 0% e 100%, para não duplicar com os fixos)
+      const porcentagens = [...new Set(
+        lista.map(f => Number(f.score)).filter(val => !isNaN(val) && val > 0 && val < 100)
+      )].sort((a, b) => b - a);
 
-      {/* BARRA DE FILTROS INTEGRADA */}
-      <section style={estilos.secaoFiltros}>
-        {/* Busca SAP / Nome */}
-        <div style={estilos.grupoFiltro}>
-          <label style={estilos.labelFiltro}>Buscar Fornecedor / SAP</label>
-          <input
-            type="text"
-            placeholder="Digite nome ou SAP..."
-            value={buscaNome}
-            onChange={(e) => setBuscaNome(e.target.value)}
-            style={estilos.input}
-          />
-        </div>
+      let htmlStatus = `
+        <option value="TODOS">Todos</option>
+        <option value="100">100% (Concluído)</option>
+        <option value="1_99">1% a 99% (Em Andamento)</option>
+        <option value="0">0% (Não Iniciado)</option>
+      `;
 
-        {/* Único Dropdown de STATUS (Sem repetidas, ordenado) */}
-        <div style={estilos.grupoFiltro}>
-          <label style={estilos.labelFiltro}>Status</label>
-          <select
-            value={filtroStatus}
-            onChange={(e) => setFiltroStatus(e.target.value)}
-            style={estilos.select}
-          >
-            {/* Opções Fixas no Topo */}
-            <option value="TODOS">Todos</option>
-            <option value="100">100% (Concluído)</option>
-            <option value="1_99">1% a 99% (Em Andamento)</option>
-            <option value="0">0% (Não Iniciado)</option>
+      if (porcentagens.length > 0) {
+        htmlStatus += `<option disabled>───────────────</option>`;
+        porcentagens.forEach(pct => {
+          htmlStatus += `<option value="${pct}">${pct}%</option>`;
+        });
+      }
 
-            {/* Divisória se existirem porcentagens parciais no banco */}
-            {porcentagensUnicas.length > 0 && (
-              <option disabled>───────────────</option>
-            )}
+      elFiltroStatus.innerHTML = htmlStatus;
+    }
 
-            {/* Opções Dinâmicas Sem Repetição */}
-            {porcentagensUnicas.map((pct) => (
-              <option key={pct} value={String(pct)}>
-                {pct}%
-              </option>
-            ))}
-          </select>
-        </div>
+    // =========================================================================
+    // 3. LÓGICA DE FILTRAGEM E RENDERIZAÇÃO DA TELA
+    // =========================================================================
+    function renderizarLista() {
+      const termo = elBuscaNome.value.trim().toLowerCase();
+      const statusSel = elFiltroStatus.value;
+      const paisSel = elFiltroPais.value;
 
-        {/* Filtro País */}
-        <div style={estilos.grupoFiltro}>
-          <label style={estilos.labelFiltro}>País</label>
-          <select
-            value={filtroPais}
-            onChange={(e) => setFiltroPais(e.target.value)}
-            style={estilos.select}
-          >
-            <option value="TODOS">Todos</option>
-            {paisesUnicos.map((p) => (
-              <option key={p} value={p}>{p}</option>
-            ))}
-          </select>
-        </div>
-      </section>
+      const filtrados = dadosFornecedores.filter(forn => {
+        const score = Number(forn.score) || 0;
 
-      {/* ESTADO DE CARREGAMENTO / ERROS */}
-      {carregando && <p style={estilos.aviso}>⏳ Carregando dados sincronizados...</p>}
-      {erro && <p style={{ ...estilos.aviso, color: '#e74c3c' }}>❌ {erro}</p>}
+        // A. Filtro Status Unificado
+        if (statusSel !== 'TODOS') {
+          if (statusSel === '100' && score !== 100) return false;
+          if (statusSel === '1_99' && (score < 1 || score >= 100)) return false;
+          if (statusSel === '0' && score !== 0) return false;
+          
+          if (!['100', '1_99', '0'].includes(statusSel) && String(score) !== statusSel) {
+            return false;
+          }
+        }
 
-      {/* LISTAGEM DE FORNECEDORES */}
-      {!carregando && !erro && (
-        <div style={estilos.grid}>
-          {fornecedoresFiltrados.length === 0 ? (
-            <p style={estilos.aviso}>Nenhum fornecedor encontrado para este filtro.</p>
-          ) : (
-            fornecedoresFiltrados.map((fornecedor) => (
-              <div key={fornecedor.id} style={estilos.card}>
-                <div style={estilos.cardTopo}>
-                  <div>
-                    <h3 style={estilos.nomeFornecedor}>{fornecedor.nome}</h3>
-                    <span style={estilos.sapBadge}>SAP: {fornecedor.id}</span>
-                    <span style={estilos.paisBadge}>🌍 {fornecedor.pais}</span>
-                  </div>
-                  <div style={estilos.scoreContainer}>
-                    <span style={{
-                      ...estilos.scoreTexto,
-                      color: fornecedor.score === 100 ? '#2ecc71' : fornecedor.score === 0 ? '#e74c3c' : '#f39c12'
-                    }}>
-                      {fornecedor.score}%
-                    </span>
-                    <span style={estilos.scoreLabel}>Conformidade</span>
-                  </div>
+        // B. Filtro País
+        if (paisSel !== 'TODOS' && forn.pais !== paisSel) return false;
+
+        // C. Busca por Nome ou SAP
+        if (termo !== '') {
+          const nome = String(forn.nome || '').toLowerCase();
+          const sap = String(forn.id || '').toLowerCase();
+          if (!nome.includes(termo) && !sap.includes(termo)) return false;
+        }
+
+        return true;
+      });
+
+      elGrid.innerHTML = '';
+
+      if (filtrados.length === 0) {
+        elGrid.innerHTML = '<div class="aviso">Nenhum fornecedor encontrado para os filtros selecionados.</div>';
+        return;
+      }
+
+      filtrados.forEach(forn => {
+        const scoreCor = forn.score === 100 ? '#2ecc71' : forn.score === 0 ? '#e74c3c' : '#f39c12';
+
+        let cardsDocs = '';
+        if (forn.documentos && forn.documentos.length > 0) {
+          forn.documentos.forEach((doc, idx) => {
+            const btnLink = doc.link ? `<a href="${doc.link}" target="_blank" class="botao-link">🔗 Visualizar</a>` : '';
+            const btnUp = (doc.linhaBase && doc.linhaBase > 0) ? 
+              `<button onclick="abrirModal('${forn.id}', ${idx})" class="botao-upload">📤 Atualizar</button>` : '';
+
+            cardsDocs += `
+              <div class="doc-item">
+                <div class="doc-info">
+                  <span class="doc-nome">${doc.nome}</span>
+                  <span class="status-badge" style="background-color: ${doc.cor};">${doc.status}</span>
                 </div>
-
-                <hr style={estilos.divisor} />
-
-                {/* Lista de Documentos (Apenas os Aplicáveis) */}
-                <div style={estilos.listaDocs}>
-                  {fornecedor.documentos && fornecedor.documentos.map((doc, idx) => (
-                    <div key={idx} style={estilos.docItem}>
-                      <div style={estilos.docInfo}>
-                        <span style={estilos.docNome}>{doc.nome}</span>
-                        <span style={{ ...estilos.statusBadge, backgroundColor: doc.cor }}>
-                          {doc.status}
-                        </span>
-                      </div>
-
-                      <div style={estilos.docAcoes}>
-                        {doc.link && (
-                          <a href={doc.link} target="_blank" rel="noreferrer" style={estilos.botaoLink}>
-                            🔗 Visualizar
-                          </a>
-                        )}
-                        {/* Botão de Anexo se tiver linhaBase > 0 */}
-                        {doc.linhaBase && doc.linhaBase > 0 && (
-                          <button
-                            onClick={() => {
-                              setFornecedorSelecionado(fornecedor);
-                              setDocSelecionado(doc);
-                            }}
-                            style={estilos.botaoUpload}
-                          >
-                            📤 Atualizar
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                <div class="doc-acoes">
+                  ${btnLink}
+                  ${btnUp}
                 </div>
               </div>
-            ))
-          )}
-        </div>
-      )}
+            `;
+          });
+        }
 
-      {/* MODAL DE UPLOAD */}
-      {fornecedorSelecionado && docSelecionado && (
-        <div style={estilos.modalOverlay}>
-          <div style={estilos.modalBox}>
-            <h2>Anexar Novo Certificado</h2>
-            <p><strong>Fornecedor:</strong> {fornecedorSelecionado.nome}</p>
-            <p><strong>Documento:</strong> {docSelecionado.nome}</p>
-            
-            <form onSubmit={handleUpload} style={{ marginTop: '15px' }}>
-              <input
-                type="file"
-                required
-                onChange={(e) => setArquivo(e.target.files[0])}
-                style={{ marginBottom: '15px', display: 'block' }}
-              />
-              <div style={estilos.modalBotoes}>
-                <button type="submit" disabled={enviando} style={estilos.botaoEnviar}>
-                  {enviando ? "Enviando..." : "Confirmar Envio"}
-                </button>
-                <button
-                  type="button"
-                  disabled={enviando}
-                  onClick={() => {
-                    setFornecedorSelecionado(null);
-                    setDocSelecionado(null);
-                    setArquivo(null);
-                  }}
-                  style={estilos.botaoCancelar}
-                >
-                  Cancelar
-                </button>
+        const cartaoHtml = `
+          <div class="card">
+            <div class="card-topo">
+              <div>
+                <h3 class="nome-fornecedor">${forn.nome}</h3>
+                <span class="sap-badge">SAP: ${forn.id}</span>
+                <span class="pais-badge">🌍 ${forn.pais || 'N/D'}</span>
               </div>
-            </form>
+              <div class="score-container">
+                <span class="score-texto" style="color: ${scoreCor};">${forn.score}%</span>
+                <span class="score-label">Conformidade</span>
+              </div>
+            </div>
+            <hr class="divisor" />
+            <div class="lista-docs">
+              ${cardsDocs}
+            </div>
           </div>
-        </div>
-      )}
-    </div>
-  );
-}
+        `;
 
-// =========================================================================
-// 5. ESTILOS (CSS in JS)
-// =========================================================================
-const estilos = {
-  container: {
-    fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif',
-    maxWidth: '1200px',
-    margin: '0 auto',
-    padding: '20px',
-    color: '#333',
-    backgroundColor: '#f8f9fa',
-    minHeight: '100vh'
-  },
-  header: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: '20px',
-    borderRadius: '8px',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-    marginBottom: '20px'
-  },
-  titulo: { margin: 0, fontSize: '24px', color: '#1a365d' },
-  subtitulo: { margin: '5px 0 0', fontSize: '14px', color: '#718096' },
-  botaoPlanilha: {
-    padding: '10px 15px',
-    backgroundColor: '#2b6cb0',
-    color: '#fff',
-    textDecoration: 'none',
-    borderRadius: '6px',
-    fontWeight: 'bold',
-    fontSize: '14px'
-  },
-  secaoFiltros: {
-    display: 'flex',
-    gap: '15px',
-    backgroundColor: '#fff',
-    padding: '15px 20px',
-    borderRadius: '8px',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-    marginBottom: '20px',
-    flexWrap: 'wrap'
-  },
-  grupoFiltro: { display: 'flex', flexDirection: 'column', flex: '1', minWidth: '200px' },
-  labelFiltro: { fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', color: '#4a5568' },
-  input: {
-    padding: '8px 12px',
-    borderRadius: '4px',
-    border: '1px solid #cbd5e0',
-    fontSize: '14px'
-  },
-  select: {
-    padding: '8px 12px',
-    borderRadius: '4px',
-    border: '1px solid #cbd5e0',
-    fontSize: '14px',
-    backgroundColor: '#fff'
-  },
-  aviso: { textAlign: 'center', fontSize: '16px', margin: '40px 0', color: '#718096' },
-  grid: { display: 'flex', flexDirection: 'column', gap: '15px' },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: '8px',
-    padding: '20px',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-  },
-  cardTopo: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' },
-  nomeFornecedor: { margin: '0 0 8px 0', fontSize: '18px', color: '#2d3748' },
-  sapBadge: {
-    fontSize: '12px',
-    backgroundColor: '#edf2f7',
-    color: '#4a5568',
-    padding: '4px 8px',
-    borderRadius: '4px',
-    marginRight: '8px',
-    fontWeight: '600'
-  },
-  paisBadge: { fontSize: '12px', color: '#718096' },
-  scoreContainer: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end' },
-  scoreTexto: { fontSize: '24px', fontWeight: 'bold' },
-  scoreLabel: { fontSize: '11px', color: '#718096', textTransform: 'uppercase' },
-  divisor: { border: 'none', borderTop: '1px solid #e2e8f0', margin: '15px 0' },
-  listaDocs: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '12px' },
-  docItem: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '10px',
-    backgroundColor: '#f7fafc',
-    borderRadius: '6px',
-    border: '1px solid #edf2f7'
-  },
-  docInfo: { display: 'flex', flexDirection: 'column', gap: '4px' },
-  docNome: { fontSize: '13px', fontWeight: '600', color: '#2d3748' },
-  statusBadge: {
-    fontSize: '11px',
-    color: '#fff',
-    padding: '2px 6px',
-    borderRadius: '4px',
-    display: 'inline-block',
-    width: 'fit-content',
-    fontWeight: 'bold'
-  },
-  docAcoes: { display: 'flex', gap: '8px' },
-  botaoLink: {
-    fontSize: '12px',
-    padding: '6px 10px',
-    backgroundColor: '#edf2f7',
-    color: '#2b6cb0',
-    textDecoration: 'none',
-    borderRadius: '4px',
-    fontWeight: 'bold'
-  },
-  botaoUpload: {
-    fontSize: '12px',
-    padding: '6px 10px',
-    backgroundColor: '#319795',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontWeight: 'bold'
-  },
-  modalOverlay: {
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1000
-  },
-  modalBox: {
-    backgroundColor: '#fff',
-    padding: '25px',
-    borderRadius: '8px',
-    width: '100%',
-    maxWidth: '450px',
-    boxShadow: '0 10px 25px rgba(0,0,0,0.1)'
-  },
-  modalBotoes: { display: 'flex', gap: '10px', justifyContent: 'flex-end' },
-  botaoEnviar: {
-    padding: '8px 16px',
-    backgroundColor: '#3182ce',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontWeight: 'bold'
-  },
-  botaoCancelar: {
-    padding: '8px 16px',
-    backgroundColor: '#e2e8f0',
-    color: '#4a5568',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontWeight: 'bold'
-  }
-};
+        elGrid.innerHTML += cartaoHtml;
+      });
+    }
+
+    // =========================================================================
+    // 4. MODAL DE UPLOAD E ENVIO PARA FILA SUPABASE
+    // =========================================================================
+    function abrirModal(idSap, docIndex) {
+      const forn = dadosFornecedores.find(f => String(f.id) === String(idSap));
+      if (!forn) return;
+      const doc = forn.documentos[docIndex];
+      if (!doc) return;
+
+      uploadContexto = { fornecedor: forn, doc: doc };
+      document.getElementById('modal-fornecedor-nome').textContent = forn.nome;
+      document.getElementById('modal-doc-nome').textContent = doc.nome;
+      document.getElementById('input-arquivo').value = '';
+      elModal.style.display = 'flex';
+    }
+
+    document.getElementById('btn-cancelar').addEventListener('click', () => {
+      elModal.style.display = 'none';
+      uploadContexto = { fornecedor: null, doc: null };
+    });
+
+    document.getElementById('form-upload').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const arquivoInput = document.getElementById('input-arquivo');
+      if (!arquivoInput.files || arquivoInput.files.length === 0) return;
+      
+      const arquivo = arquivoInput.files[0];
+      const btnEnviar = document.getElementById('btn-enviar');
+      btnEnviar.disabled = true;
+      btnEnviar.textContent = "Enviando...";
+
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64Clean = reader.result.split(',')[1];
+        const pacote = {
+          idFornecedor: uploadContexto.fornecedor.id,
+          nomeFornecedor: uploadContexto.fornecedor.nome,
+          nomeArquivo: arquivo.name,
+          mimeType: arquivo.type || "application/pdf",
+          base64: base64Clean,
+          abaDestino: uploadContexto.doc.abaDestino,
+          linhaBase: uploadContexto.doc.linhaBase,
+          colStatus: uploadContexto.doc.colStatus
+        };
+
+        try {
+          const resp = await fetch(`${SUPABASE_URL}/rest/v1/fila_uploads`, {
+            method: 'POST',
+            headers: {
+              'apikey': API_KEY,
+              'Authorization': `Bearer ${API_KEY}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ pacote: pacote, processado: false })
+          });
+
+          if (resp.ok) {
+            alert("Arquivo enviado com sucesso! O sistema atualizará o status na planilha em alguns minutos.");
+            elModal.style.display = 'none';
+          } else {
+            alert("Erro ao enviar o arquivo. Tente novamente.");
+          }
+        } catch (err) {
+          console.error("Erro upload:", err);
+          alert("Erro de conexão ao enviar o arquivo.");
+        } finally {
+          btnEnviar.disabled = false;
+          btnEnviar.textContent = "Confirmar Envio";
+        }
+      };
+      reader.readAsDataURL(arquivo);
+    });
+
+    // =========================================================================
+    // EVENTOS DE ESCUTA DOS FILTROS
+    // =========================================================================
+    elBuscaNome.addEventListener('input', renderizarLista);
+    elFiltroStatus.addEventListener('change', renderizarLista);
+    elFiltroPais.addEventListener('change', renderizarLista);
+
+    // Iniciar aplicação
+    carregarDados();
+  </script>
+</body>
+</html>
