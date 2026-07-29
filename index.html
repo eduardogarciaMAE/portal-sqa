@@ -101,7 +101,6 @@
     .score-texto { font-size: 24px; font-weight: bold; }
     .score-label { font-size: 11px; color: #718096; text-transform: uppercase; }
     
-    /* Acordeão (Sanfona) */
     .btn-expandir {
       background-color: #edf2f7;
       border: 1px solid #cbd5e0;
@@ -118,7 +117,7 @@
     }
     .btn-expandir:hover { background-color: #e2e8f0; }
     .lista-docs {
-      display: none; /* Escondido por padrão */
+      display: none;
       grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
       gap: 12px;
       margin-top: 15px;
@@ -167,7 +166,6 @@
       cursor: pointer;
       font-weight: bold;
     }
-    /* Modal */
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -208,7 +206,6 @@
 </head>
 <body>
 
-  <!-- CABEÇALHO (CORRIGIDO PARA PLANILHA BASE) -->
   <header class="header">
     <div>
       <h1 class="titulo">Portal SQA - Conformidade de Fornecedores</h1>
@@ -219,14 +216,12 @@
     </a>
   </header>
 
-  <!-- FILTROS -->
   <section class="secao-filtros">
     <div class="grupo-filtro">
       <label class="label-filtro" for="busca-nome">Buscar Fornecedor / SAP</label>
       <input id="busca-nome" type="text" class="input" placeholder="Digite nome ou SAP..." />
     </div>
 
-    <!-- Filtro de STATUS unificado -->
     <div class="grupo-filtro">
       <label class="label-filtro" for="filtro-status">Status</label>
       <select id="filtro-status" class="select">
@@ -245,11 +240,9 @@
     </div>
   </section>
 
-  <!-- MENSAGENS E LISTA -->
   <div id="mensagem-status" class="aviso">⏳ Carregando dados sincronizados...</div>
   <div id="grid-fornecedores" class="grid"></div>
 
-  <!-- MODAL DE UPLOAD -->
   <div id="modal-upload" class="modal-overlay">
     <div class="modal-box">
       <h2>Anexar Novo Certificado</h2>
@@ -281,33 +274,47 @@
     const elModal = document.getElementById('modal-upload');
 
     // =========================================================================
-    // REGRA DE STATUS E CONFORMIDADE (BLINDADA PARA NÚMEROS POSITIVOS E TEXTOS)
+    // REGRA DE CONFORMIDADE REFORÇADA (BLINDADA PARA NÚMEROS E TEXTOS)
     // =========================================================================
     function verificarSeConforme(statusCelula) {
-      if (!statusCelula) return false;
+      if (!statusCelula && statusCelula !== 0) return false;
       const str = String(statusCelula).trim();
       const sUp = str.toUpperCase();
 
-      // 1. Se for texto de aprovação clara
-      if (sUp.includes('OK') || sUp.includes('ATUALIZADO') || sUp.includes('APROVADO') || sUp.includes('VÁLIDO') || sUp.includes('VALIDO')) {
+      // 1. Textos claros de conformidade / aprovação (Prioridade Alta)
+      if (
+        sUp.includes('ATUALIZADO') || 
+        sUp.includes('OK') || 
+        sUp.includes('APROVADO') || 
+        sUp.includes('VÁLIDO') || 
+        sUp.includes('VALIDO') ||
+        sUp.includes('CONFORME')
+      ) {
         return true;
       }
       
-      // 2. Se for texto que indica pendência clara
-      if (sUp.includes('PENDENTE') || sUp.includes('NOK') || sUp.includes('ATRASADO') || sUp.includes('SOLICITAR') || sUp.includes('VENCIDO')) {
+      // 2. Textos claros de pendência ou atraso
+      if (
+        sUp === 'PENDENTE' ||
+        sUp.includes('NOK') || 
+        sUp.includes('ATRASADO') || 
+        sUp.includes('SOLICITAR') || 
+        sUp.includes('VENCIDO') ||
+        sUp.includes('EXPIRADO')
+      ) {
         return false;
       }
 
-      // 3. Se for NÚMERO: Positivo > 0 = Conforme (Verde). Negativo < 0 = Atrasado/Vencido (Vermelho)
-      if (!isNaN(Number(str)) && str !== '') {
-        const numero = Number(str);
-        return numero > 0;
+      // 3. Se for NÚMERO (ou string numérica, ex: "896" ou " 896 "): 
+      // Positivo (> 0) = Conforme (Verde) | Negativo/Zero = Atrasado (Vermelho)
+      const numTentativa = Number(str);
+      if (!isNaN(numTentativa) && str !== '') {
+        return numTentativa > 0;
       }
 
       return false;
     }
 
-    // Calcula a porcentagem real com base nos documentos APLICÁVEIS exibidos para o fornecedor
     function calcularScoreReal(forn) {
       if (!forn.documentos || forn.documentos.length === 0) return 0;
       
@@ -316,7 +323,6 @@
 
       forn.documentos.forEach(doc => {
         const str = String(doc.status).trim().toUpperCase();
-        // Ignora documentos não aplicáveis no cálculo
         if (str === 'N.A' || str === 'N/A' || str === '-' || str === '' || str.includes('NÃO FORNECE')) {
           return;
         }
@@ -330,9 +336,6 @@
       return Math.round((totalConformes / totalAplicaveis) * 100);
     }
 
-    // =========================================================================
-    // 1. CARREGAR DADOS
-    // =========================================================================
     async function carregarDados() {
       try {
         const resposta = await fetch(`${SUPABASE_URL}/rest/v1/api_dados?id=eq.1&select=*`, {
@@ -351,7 +354,6 @@
           const payload = registros[0].json_completo;
           dadosFornecedores = payload.fornecedores || [];
           
-          // Recalcula todos os scores no frontend com precisão matemática absoluta
           dadosFornecedores.forEach(f => {
             f.scoreCalculado = calcularScoreReal(f);
           });
@@ -374,9 +376,6 @@
       }
     }
 
-    // =========================================================================
-    // 2. POPULAR OPÇÕES DOS FILTROS
-    // =========================================================================
     function popularFiltros(lista) {
       const paises = [...new Set(lista.map(f => f.pais || 'N/D').filter(Boolean))].sort();
       elFiltroPais.innerHTML = '<option value="TODOS">Todos</option>';
@@ -405,9 +404,6 @@
       elFiltroStatus.innerHTML = htmlStatus;
     }
 
-    // =========================================================================
-    // 3. RENDERIZAÇÃO DA TELA (COM ACORDEÃO E BADGES CORRETAS)
-    // =========================================================================
     function renderizarLista() {
       const termo = elBuscaNome.value.trim().toLowerCase();
       const statusSel = elFiltroStatus.value;
@@ -451,11 +447,12 @@
         if (forn.documentos && forn.documentos.length > 0) {
           forn.documentos.forEach((doc, idxDoc) => {
             const str = String(doc.status).trim().toUpperCase();
-            if (str === 'N.A' || str === 'N/A' || str === '-' || str === '') return; // Oculta inativos
+            if (str === 'N.A' || str === 'N/A' || str === '-' || str === '') return;
             
             totalDocs++;
-            // Cor do badge: Verde se é Conforme (incluindo números positivos como 229, 170), Vermelho caso contrário
-            const badgeCor = verificarSeConforme(doc.status) ? '#2ecc71' : '#e74c3c';
+            // Cor do badge e validação agora chamam a mesma função de verificação
+            const isConforme = verificarSeConforme(doc.status);
+            const badgeCor = isConforme ? '#2ecc71' : '#e74c3c';
 
             const btnLink = doc.link ? `<a href="${doc.link}" target="_blank" class="botao-link">🔗 Visualizar</a>` : '';
             const btnUp = (doc.linhaBase && doc.linhaBase > 0) ? 
@@ -489,14 +486,12 @@
                   <span class="score-texto" style="color: ${scoreCor};">${score}%</span>
                   <span class="score-label">Conformidade</span>
                 </div>
-                <!-- BOTÃO SANFONA EXPANDIR/RECOLHER -->
                 <button id="btn-exp-${idxCard}" type="button" class="btn-expandir">
                   ▼ Expandir (${totalDocs})
                 </button>
               </div>
             </div>
             
-            <!-- LISTA ACORDEÃO (ESCONDIDA ATÉ CLICAR) -->
             <div id="lista-doc-${idxCard}" class="lista-docs">
               ${cardsDocs}
             </div>
@@ -507,9 +502,6 @@
       });
     }
 
-    // =========================================================================
-    // 4. ABRIR / FECHAR ACORDEÃO (SANFONA)
-    // =========================================================================
     function toggleAcordeao(idLista, idBotao) {
       const elLista = document.getElementById(idLista);
       const elBtn = document.getElementById(idBotao);
@@ -525,9 +517,6 @@
       }
     }
 
-    // =========================================================================
-    // 5. MODAL DE UPLOAD
-    // =========================================================================
     function abrirModal(idSap, docIndex) {
       const forn = dadosFornecedores.find(f => String(f.id) === String(idSap));
       if (!forn) return;
