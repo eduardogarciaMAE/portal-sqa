@@ -274,7 +274,7 @@
     const elModal = document.getElementById('modal-upload');
 
     // =========================================================================
-    // VALIDAÇÃO IMPLACÁVEL DE CONFORMIDADE (RESOLVE O CASO DO 896 DA BEVI)
+    // VALIDAÇÃO UNIFICADA DE CONFORMIDADE
     // =========================================================================
     function verificarSeConforme(statusCelula) {
       if (statusCelula === null || statusCelula === undefined) return false;
@@ -282,16 +282,15 @@
       const str = String(statusCelula).trim();
       const sUp = str.toUpperCase();
 
-      // 1. Prioridade Máxima: Se contiver QUALQUER número positivo (ex: "896", " 896 ", "Validade: 896")
-      // Remove tudo o que não for número, sinal ou ponto para ver se é um número > 0
+      // 1. Número positivo -> Conforme (Verde)
       const apenasNumeros = str.replace(/[^0-9.-]+/g, "");
       if (apenasNumeros !== "" && !isNaN(Number(apenasNumeros))) {
         if (Number(apenasNumeros) > 0) {
-          return true; // É número positivo! Conforme (Verde) na hora!
+          return true; 
         }
       }
 
-      // 2. Termos positivos claros
+      // 2. Termos positivos claros + auditoria realizada / planejada
       if (
         sUp.includes('ATUALIZADO') || 
         sUp.includes('OK') || 
@@ -299,6 +298,12 @@
         sUp.includes('VÁLIDO') || 
         sUp.includes('VALIDO') || 
         sUp.includes('CONFORME') ||
+        sUp.includes('REALIZADO') || 
+        sUp.includes('PLANEJADA') || 
+        sUp.includes('PLANEJADO') ||
+        sUp.includes('AUTO-AVALIAÇÃO') || 
+        sUp.includes('AUTO AVALIAÇÃO') ||
+        sUp.includes('AUTO-AVALIACAO') ||
         sUp === 'SIM'
       ) {
         return true;
@@ -312,6 +317,7 @@
         sUp.includes('SOLICITAR') || 
         sUp.includes('VENCIDO') || 
         sUp.includes('EXPIRADO') ||
+        sUp.includes('TO BE AUDITED') ||
         sUp === 'NÃO' ||
         sUp === 'NAO'
       ) {
@@ -456,7 +462,6 @@
             if (str === 'N.A' || str === 'N/A' || str === '-' || str === '') return;
             
             totalDocs++;
-            // Usa a mesma função de validação para pintar o badge
             const isConforme = verificarSeConforme(doc.status);
             const badgeCor = isConforme ? '#2ecc71' : '#e74c3c';
 
