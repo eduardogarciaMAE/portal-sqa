@@ -4,605 +4,786 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Portal SQA - Conformidade de Fornecedores</title>
+  
+  <!-- Biblioteca de Gráficos Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Ícones FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
   <style>
-    * { box-sizing: border-box; }
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 20px;
-      color: #333;
-      background-color: #f8f9fa;
+    :root {
+      --primary: #1e3a8a;
+      --secondary: #3b82f6;
+      --success: #2ecc71;
+      --warning: #f1c40f;
+      --danger: #e74c3c;
+      --bg-color: #f8fafc;
+      --card-bg: #ffffff;
+      --text-main: #1f2937;
+      --text-muted: #6b7280;
+      --border: #e5e7eb;
     }
-    .header {
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      padding: 20px;
+    }
+
+    header {
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      color: white;
+      padding: 25px 30px;
+      border-radius: 12px;
+      margin-bottom: 25px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
       display: flex;
       justify-content: space-between;
       align-items: center;
-      background-color: #fff;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-      margin-bottom: 20px;
-    }
-    .titulo { margin: 0; font-size: 24px; color: #1a365d; }
-    .subtitulo { margin: 5px 0 0; font-size: 14px; color: #718096; }
-    .botao-planilha {
-      padding: 10px 15px;
-      background-color: #2b6cb0;
-      color: #fff;
-      text-decoration: none;
-      border-radius: 6px;
-      font-weight: bold;
-      font-size: 14px;
-    }
-    .secao-filtros {
-      display: flex;
-      gap: 15px;
-      background-color: #fff;
-      padding: 15px 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-      margin-bottom: 20px;
       flex-wrap: wrap;
+      gap: 15px;
     }
-    .grupo-filtro {
+
+    header h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn-sync {
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: white;
+      padding: 10px 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    .btn-sync:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    /* --- DASHBOARD GRÁFICOS --- */
+    .dashboard-section {
+      margin-bottom: 30px;
+    }
+
+    .dashboard-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .dashboard-header h3 {
+      font-size: 1.2rem;
+      color: var(--primary);
+    }
+
+    .badge-marco {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      background: #e2e8f0;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-weight: 600;
+    }
+
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      gap: 20px;
+    }
+
+    .chart-card {
+      background: var(--card-bg);
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      border: 1px solid var(--border);
+    }
+
+    .chart-card h4 {
+      margin-bottom: 15px;
+      font-size: 0.95rem;
+      color: var(--text-main);
+    }
+
+    .chart-container {
+      position: relative;
+      height: 250px;
+      width: 100%;
+    }
+
+    .chart-full {
+      grid-column: 1 / -1;
+    }
+
+    .chart-container-short {
+      position: relative;
+      height: 160px;
+      width: 100%;
+    }
+
+    /* --- CONTROLES DE BUSCA --- */
+    .controls-container {
+      background: var(--card-bg);
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      border: 1px solid var(--border);
+      margin-bottom: 25px;
       display: flex;
       flex-direction: column;
-      flex: 1;
-      min-width: 200px;
+      gap: 15px;
     }
-    .label-filtro {
-      font-size: 12px;
-      font-weight: bold;
-      margin-bottom: 5px;
-      color: #4a5568;
-    }
-    .input, .select {
-      padding: 8px 12px;
-      border-radius: 4px;
-      border: 1px solid #cbd5e0;
-      font-size: 14px;
-      background-color: #fff;
-    }
-    .aviso {
-      text-align: center;
-      font-size: 16px;
-      margin: 40px 0;
-      color: #718096;
-    }
-    .grid { display: flex; flex-direction: column; gap: 15px; }
-    .card {
-      background-color: #fff;
-      border-radius: 8px;
-      padding: 20px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-      transition: all 0.2s ease;
-    }
-    .card-topo {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      cursor: pointer;
-      user-select: none;
-    }
-    .nome-fornecedor { margin: 0 0 8px 0; font-size: 18px; color: #2d3748; }
-    .sap-badge {
-      font-size: 12px;
-      background-color: #edf2f7;
-      color: #4a5568;
-      padding: 4px 8px;
-      border-radius: 4px;
-      margin-right: 8px;
-      font-weight: 600;
-    }
-    .pais-badge { font-size: 12px; color: #718096; }
-    .card-direita { display: flex; align-items: center; gap: 20px; }
-    .score-container { display: flex; flex-direction: column; align-items: flex-end; }
-    .score-texto { font-size: 24px; font-weight: bold; }
-    .score-label { font-size: 11px; color: #718096; text-transform: uppercase; }
-    
-    .btn-expandir {
-      background-color: #edf2f7;
-      border: 1px solid #cbd5e0;
-      color: #2d3748;
-      padding: 8px 14px;
-      border-radius: 6px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      transition: background-color 0.2s;
-    }
-    .btn-expandir:hover { background-color: #e2e8f0; }
-    .lista-docs {
-      display: none;
-      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-      gap: 12px;
-      margin-top: 15px;
-      padding-top: 15px;
-      border-top: 1px solid #e2e8f0;
-    }
-    .lista-docs.aberto { display: grid; }
-    
-    .doc-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px;
-      background-color: #f7fafc;
-      border-radius: 6px;
-      border: 1px solid #edf2f7;
-    }
-    .doc-info { display: flex; flex-direction: column; gap: 4px; }
-    .doc-nome { font-size: 13px; font-weight: 600; color: #2d3748; }
-    .status-badge {
-      font-size: 11px;
-      color: #fff;
-      padding: 2px 6px;
-      border-radius: 4px;
-      display: inline-block;
-      width: fit-content;
-      font-weight: bold;
-    }
-    .doc-acoes { display: flex; gap: 8px; }
-    .botao-link {
-      font-size: 12px;
-      padding: 6px 10px;
-      background-color: #edf2f7;
-      color: #2b6cb0;
-      text-decoration: none;
-      border-radius: 4px;
-      font-weight: bold;
-    }
-    .botao-upload {
-      font-size: 12px;
-      padding: 6px 10px;
-      background-color: #319795;
-      color: #fff;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-weight: bold;
-    }
-    .modal-overlay {
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background-color: rgba(0,0,0,0.5);
-      display: none;
-      justify-content: center;
-      align-items: center;
-      z-index: 1000;
-    }
-    .modal-box {
-      background-color: #fff;
-      padding: 25px;
-      border-radius: 8px;
+
+    .search-box {
+      position: relative;
       width: 100%;
-      max-width: 450px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.1);
     }
-    .modal-botoes { display: flex; gap: 10px; justify-content: flex-end; margin-top: 15px; }
-    .botao-enviar {
-      padding: 8px 16px;
-      background-color: #3182ce;
-      color: #fff;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-weight: bold;
+
+    .search-box input {
+      width: 100%;
+      padding: 14px 45px 14px 18px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s;
     }
-    .botao-cancelar {
+
+    .search-box input:focus {
+      border-color: var(--secondary);
+    }
+
+    .search-box i {
+      position: absolute;
+      right: 18px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+    }
+
+    .filter-buttons {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .filter-btn {
+      background: #f1f5f9;
+      border: 1px solid var(--border);
+      color: var(--text-main);
       padding: 8px 16px;
-      background-color: #e2e8f0;
-      color: #4a5568;
-      border: none;
-      border-radius: 4px;
+      border-radius: 6px;
       cursor: pointer;
-      font-weight: bold;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .filter-btn.active, .filter-btn:hover {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+
+    /* --- CARDS FORNECEDORES --- */
+    .suppliers-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .supplier-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      transition: border-color 0.2s;
+    }
+
+    .supplier-header {
+      padding: 18px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      background: #ffffff;
+    }
+
+    .supplier-header:hover {
+      background: #f8fafc;
+    }
+
+    .supplier-info h3 {
+      font-size: 1.1rem;
+      color: var(--text-main);
+      margin-bottom: 4px;
+    }
+
+    .supplier-meta {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      display: flex;
+      gap: 15px;
+    }
+
+    .badge-status {
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: white;
+      text-transform: uppercase;
+    }
+
+    .supplier-details {
+      display: none;
+      border-top: 1px solid var(--border);
+      padding: 20px;
+      background: #f8fafc;
+    }
+
+    .docs-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+    .docs-table th, .docs-table td {
+      padding: 12px 15px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+
+    .docs-table th {
+      background: #f1f5f9;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .badge-doc {
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: white;
+      display: inline-block;
+    }
+
+    .btn-action {
+      text-decoration: none;
+      color: var(--secondary);
+      font-weight: 600;
+      font-size: 0.85rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .btn-action:hover {
+      text-decoration: underline;
+    }
+
+    .btn-upload {
+      background: #e0f2fe;
+      color: #0369a1;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.8rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .btn-upload:hover {
+      background: #bae6fd;
+    }
+
+    @media (max-width: 768px) {
+      .charts-grid {
+        grid-template-columns: 1fr;
+      }
+      .supplier-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+      }
     }
   </style>
 </head>
 <body>
 
-  <header class="header">
+  <!-- CABEÇALHO DO SISTEMA -->
+  <header>
     <div>
-      <h1 class="titulo">Portal SQA - Conformidade de Fornecedores</h1>
-      <p class="subtitulo">Acompanhamento de certificados e auditorias</p>
+      <h1><i class="fa-solid fa-shield-halved"></i> Portal de Conformidade SQA</h1>
+      <p style="font-size: 0.9rem; opacity: 0.8; margin-top: 4px;">Monitoramento em Tempo Real - Auditorias, Requisitos e Certificações</p>
     </div>
-    <a id="btn-planilha" href="#" target="_blank" class="botao-planilha" style="display:none;">
-      📄 Ver Planilha Base
-    </a>
+    <button class="btn-sync" onclick="carregarDadosDoSupabase()">
+      <i class="fa-solid fa-arrows-rotate"></i> Sincronizar Dados
+    </button>
   </header>
 
-  <section class="secao-filtros">
-    <div class="grupo-filtro">
-      <label class="label-filtro" for="busca-nome">Buscar Fornecedor / SAP</label>
-      <input id="busca-nome" type="text" class="input" placeholder="Digite nome ou SAP..." />
+  <!-- PAINEL EXECUTIVO DE GRÁFICOS (BI SQA) -->
+  <section class="dashboard-section">
+    <div class="dashboard-header">
+      <h3><i class="fa-solid fa-chart-column"></i> Painel Analítico da Cadeia de Fornecedores</h3>
+      <span class="badge-marco">Marco Zero • Evolução e Conformidade</span>
     </div>
 
-    <div class="grupo-filtro">
-      <label class="label-filtro" for="filtro-status">Status</label>
-      <select id="filtro-status" class="select">
-        <option value="TODOS">Todos</option>
-        <option value="100">100% (Concluído)</option>
-        <option value="1_99">1% a 99% (Em Andamento)</option>
-        <option value="0">0% (Não Iniciado)</option>
-      </select>
-    </div>
+    <div class="charts-grid">
+      <!-- Card 1: Por Requisito / Norma -->
+      <div class="chart-card">
+        <h4>Conformidade por Norma / Auditoria (Em dia vs Pendente)</h4>
+        <div class="chart-container">
+          <canvas id="chartNormas"></canvas>
+        </div>
+      </div>
 
-    <div class="grupo-filtro">
-      <label class="label-filtro" for="filtro-pais">País</label>
-      <select id="filtro-pais" class="select">
-        <option value="TODOS">Todos</option>
-      </select>
+      <!-- Card 2: Evolução Histórica (Marco Zero -> Futuro) -->
+      <div class="chart-card">
+        <h4>Evolução do Índice Geral de Conformidade (%)</h4>
+        <div class="chart-container">
+          <canvas id="chartEvolucao"></canvas>
+        </div>
+      </div>
+
+      <!-- Card 3: Semáforo de Prazos -->
+      <div class="chart-card chart-full">
+        <h4>Distribuição de Prazos de Validade (Semáforo de Riscos)</h4>
+        <div class="chart-container-short">
+          <canvas id="chartPrazos"></canvas>
+        </div>
+      </div>
     </div>
   </section>
 
-  <div id="mensagem-status" class="aviso">⏳ Carregando dados sincronizados...</div>
-  <div id="grid-fornecedores" class="grid"></div>
-
-  <div id="modal-upload" class="modal-overlay">
-    <div class="modal-box">
-      <h2>Anexar Novo Certificado</h2>
-      <p><strong>Fornecedor:</strong> <span id="modal-fornecedor-nome"></span></p>
-      <p><strong>Documento:</strong> <span id="modal-doc-nome"></span></p>
-      <form id="form-upload" style="margin-top: 15px;">
-        <input id="input-arquivo" type="file" required style="margin-bottom: 15px; display: block;" />
-        <div class="modal-botoes">
-          <button id="btn-enviar" type="submit" class="botao-enviar">Confirmar Envio</button>
-          <button id="btn-cancelar" type="button" class="botao-cancelar">Cancelar</button>
-        </div>
-      </form>
+  <!-- CAIXA DE BUSCA E FILTROS -->
+  <section class="controls-container">
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="Buscar por Nome do Fornecedor ou Código SAP..." onkeyup="filtrarLista()">
+      <i class="fa-solid fa-magnifying-glass"></i>
     </div>
-  </div>
+    
+    <div class="filter-buttons">
+      <button class="filter-btn active" onclick="aplicarFiltro('TODOS', this)">Todos (<span id="countTodos">0</span>)</button>
+      <button class="filter-btn" onclick="aplicarFiltro('VERDE', this)">Conformes (<span id="countVerde">0</span>)</button>
+      <button class="filter-btn" onclick="aplicarFiltro('VERMELHO', this)">Pendentes / Vencidos (<span id="countVermelho">0</span>)</button>
+    </div>
+  </section>
+
+  <!-- LISTA DE FORNECEDORES -->
+  <main id="suppliersContainer" class="suppliers-grid">
+    <p style="text-align: center; color: var(--text-muted); padding: 40px 0;">
+      <i class="fa-solid fa-spinner fa-spin"></i> Carregando banco de fornecedores...
+    </p>
+  </main>
+
+  <!-- INPUT DE ARQUIVO OCULTO PARA UPLOAD -->
+  <input type="file" id="fileInput" style="display: none;" onchange="executarUploadArquivo(this)">
 
   <script>
-    const SUPABASE_URL = "https://jlheqyylcrczdkwucycj.supabase.co";
-    const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsaGVxeXlsY3JjemRrd3VjeWNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyNTc2MTMsImV4cCI6MjEwMDgzMzYxM30.zQ2C_929ddwBnl-a1eRzLBa08GZ08CZwYcjLNda61XU";
-    
-    let dadosFornecedores = [];
-    let uploadContexto = { fornecedor: null, doc: null };
+    var CONFIG_SUPABASE = {
+      url: "https://jlheqyylcrczdkwucycj.supabase.co/rest/v1/api_dados?select=*",
+      urlFila: "https://jlheqyylcrczdkwucycj.supabase.co/rest/v1/fila_uploads",
+      apiKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsaGVxeXlsY3JjemRrd3VjeWNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyNTc2MTMsImV4cCI6MjEwMDgzMzYxM30.zQ2C_929ddwBnl-a1eRzLBa08GZ08CZwYcjLNda61XU"
+    };
 
-    const elBuscaNome = document.getElementById('busca-nome');
-    const elFiltroStatus = document.getElementById('filtro-status');
-    const elFiltroPais = document.getElementById('filtro-pais');
-    const elGrid = document.getElementById('grid-fornecedores');
-    const elMsg = document.getElementById('mensagem-status');
-    const elBtnPlanilha = document.getElementById('btn-planilha');
-    const elModal = document.getElementById('modal-upload');
+    var listaCompletaFornecedores = [];
+    var filtroAtivo = "TODOS";
+    var contextoUpload = null;
 
-    // =========================================================================
-    // VALIDAÇÃO UNIFICADA DE CONFORMIDADE
-    // =========================================================================
-    function verificarSeConforme(statusCelula) {
-      if (statusCelula === null || statusCelula === undefined) return false;
-      
-      const str = String(statusCelula).trim();
-      const sUp = str.toUpperCase();
+    // Instâncias do Chart.js
+    var chartNormasInst = null;
+    var chartEvoInst = null;
+    var chartPrazosInst = null;
 
-      // 1. Número positivo -> Conforme (Verde)
-      const apenasNumeros = str.replace(/[^0-9.-]+/g, "");
-      if (apenasNumeros !== "" && !isNaN(Number(apenasNumeros))) {
-        if (Number(apenasNumeros) > 0) {
-          return true; 
+    window.onload = function() {
+      carregarDadosDoSupabase();
+    };
+
+    function carregarDadosDoSupabase() {
+      fetch(CONFIG_SUPABASE.url, {
+        method: "GET",
+        headers: {
+          "apikey": CONFIG_SUPABASE.apiKey,
+          "Authorization": "Bearer " + CONFIG_SUPABASE.apiKey
         }
-      }
-
-      // 2. Termos positivos claros + auditoria realizada / planejada
-      if (
-        sUp.includes('ATUALIZADO') || 
-        sUp.includes('OK') || 
-        sUp.includes('APROVADO') || 
-        sUp.includes('VÁLIDO') || 
-        sUp.includes('VALIDO') || 
-        sUp.includes('CONFORME') ||
-        sUp.includes('REALIZADO') || 
-        sUp.includes('PLANEJADA') || 
-        sUp.includes('PLANEJADO') ||
-        sUp.includes('AUTO-AVALIAÇÃO') || 
-        sUp.includes('AUTO AVALIAÇÃO') ||
-        sUp.includes('AUTO-AVALIACAO') ||
-        sUp === 'SIM'
-      ) {
-        return true;
-      }
-      
-      // 3. Termos negativos ou atrasados
-      if (
-        sUp.includes('PENDENTE') || 
-        sUp.includes('NOK') || 
-        sUp.includes('ATRASADO') || 
-        sUp.includes('SOLICITAR') || 
-        sUp.includes('VENCIDO') || 
-        sUp.includes('EXPIRADO') ||
-        sUp.includes('TO BE AUDITED') ||
-        sUp === 'NÃO' ||
-        sUp === 'NAO'
-      ) {
-        return false;
-      }
-
-      return false;
-    }
-
-    function calcularScoreReal(forn) {
-      if (!forn.documentos || forn.documentos.length === 0) return 0;
-      
-      let totalAplicaveis = 0;
-      let totalConformes = 0;
-
-      forn.documentos.forEach(doc => {
-        const str = String(doc.status).trim().toUpperCase();
-        if (str === 'N.A' || str === 'N/A' || str === '-' || str === '' || str.includes('NÃO FORNECE')) {
-          return;
-        }
-        totalAplicaveis++;
-        if (verificarSeConforme(doc.status)) {
-          totalConformes++;
-        }
-      });
-
-      if (totalAplicaveis === 0) return 100;
-      return Math.round((totalConformes / totalAplicaveis) * 100);
-    }
-
-    async function carregarDados() {
-      try {
-        const resposta = await fetch(`${SUPABASE_URL}/rest/v1/api_dados?id=eq.1&select=*`, {
-          method: 'GET',
-          headers: {
-            'apikey': API_KEY,
-            'Authorization': `Bearer ${API_KEY}`,
-            'Content-Type': 'application/json'
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.length > 0) {
+          var registro = data[data.length - 1]; // Pega sempre o snapshot mais recente
+          if (registro && registro.json_completo) {
+            listaCompletaFornecedores = registro.json_completo.fornecedores || [];
+            listaCompletaFornecedores.sort((a, b) => a.nome.localeCompare(b.nome));
+            
+            atualizarContadores();
+            renderizarPortal();
+            renderizarGraficos();
           }
-        });
-
-        if (!resposta.ok) throw new Error(`Erro API: ${resposta.status}`);
-
-        const registros = await resposta.json();
-        if (registros && registros.length > 0 && registros[0].json_completo) {
-          const payload = registros[0].json_completo;
-          dadosFornecedores = payload.fornecedores || [];
-          
-          dadosFornecedores.forEach(f => {
-            f.scoreCalculado = calcularScoreReal(f);
-          });
-
-          if (payload.urlPlanilha) {
-            elBtnPlanilha.href = payload.urlPlanilha;
-            elBtnPlanilha.style.display = 'inline-block';
-          }
-
-          popularFiltros(dadosFornecedores);
-          renderizarLista();
-          elMsg.style.display = 'none';
         } else {
-          elMsg.textContent = "Nenhum dado cadastrado no sistema.";
+          document.getElementById('suppliersContainer').innerHTML = `<p style="text-align:center; color:#e74c3c;">Nenhum fornecedor encontrado no banco de dados.</p>`;
         }
-      } catch (erro) {
-        console.error("Erro ao carregar:", erro);
-        elMsg.textContent = "❌ Falha ao carregar dados. Tente recarregar a página.";
-        elMsg.style.color = "#e74c3c";
-      }
+      })
+      .catch(err => {
+        document.getElementById('suppliersContainer').innerHTML = `<p style="text-align:center; color:#e74c3c;">Erro ao conectar com Supabase: ${err.message}</p>`;
+      });
     }
 
-    function popularFiltros(lista) {
-      const paises = [...new Set(lista.map(f => f.pais || 'N/D').filter(Boolean))].sort();
-      elFiltroPais.innerHTML = '<option value="TODOS">Todos</option>';
-      paises.forEach(pais => {
-        elFiltroPais.innerHTML += `<option value="${pais}">${pais}</option>`;
+    // ==========================================================
+    // LÓGICA DE GRÁFICOS (BI SQA - CHART.JS)
+    // ==========================================================
+    function renderizarGraficos() {
+      if (!listaCompletaFornecedores || listaCompletaFornecedores.length === 0) return;
+
+      var contagemNormas = {};
+      var totalDocs = 0;
+      var totalConformes = 0;
+
+      var prazosOK = 0;      // > 30 dias
+      var prazosAtencao = 0; // 1 a 30 dias
+      var prazosVencido = 0; // <= 0 ou Pendente
+
+      listaCompletaFornecedores.forEach(function(f) {
+        if (f.documentos && f.documentos.length > 0) {
+          f.documentos.forEach(function(doc) {
+            totalDocs++;
+            var nomeDocLimpo = doc.nome.replace(/^[0-9]+\.\s*/, '');
+
+            if (!contagemNormas[nomeDocLimpo]) {
+              contagemNormas[nomeDocLimpo] = { ok: 0, pendente: 0 };
+            }
+
+            var statusStr = String(doc.status).trim();
+            var numDias = Number(statusStr.replace(/[^0-9.-]+/g, ""));
+            var ehVerde = false;
+
+            // Define se é Número de Dias ou Palavra-Chave
+            if (!isNaN(numDias) && statusStr.replace(/[^0-9.-]+/g, "") !== "") {
+              if (numDias > 0) {
+                ehVerde = true;
+                if (numDias <= 30) prazosAtencao++;
+                else prazosOK++;
+              } else {
+                prazosVencido++;
+              }
+            } else if (doc.cor === '#2ecc71') {
+              ehVerde = true;
+              prazosOK++;
+            } else {
+              prazosVencido++;
+            }
+
+            if (ehVerde) {
+              contagemNormas[nomeDocLimpo].ok++;
+              totalConformes++;
+            } else {
+              contagemNormas[nomeDocLimpo].pendente++;
+            }
+          });
+        }
       });
 
-      const porcentagens = [...new Set(
-        lista.map(f => f.scoreCalculado).filter(val => !isNaN(val) && val > 0 && val < 100)
-      )].sort((a, b) => b - a);
+      // --- 1. Gráfico de Normas (Barras Horizontais Empilhadas) ---
+      var labelsNormas = Object.keys(contagemNormas);
+      var arrayOK = labelsNormas.map(k => contagemNormas[k].ok);
+      var arrayPendente = labelsNormas.map(k => contagemNormas[k].pendente);
 
-      let htmlStatus = `
-        <option value="TODOS">Todos</option>
-        <option value="100">100% (Concluído)</option>
-        <option value="1_99">1% a 99% (Em Andamento)</option>
-        <option value="0">0% (Não Iniciado)</option>
-      `;
-
-      if (porcentagens.length > 0) {
-        htmlStatus += `<option disabled>───────────────</option>`;
-        porcentagens.forEach(pct => {
-          htmlStatus += `<option value="${pct}">${pct}%</option>`;
+      var ctx1 = document.getElementById('chartNormas');
+      if (ctx1) {
+        if (chartNormasInst) chartNormasInst.destroy();
+        chartNormasInst = new Chart(ctx1, {
+          type: 'bar',
+          data: {
+            labels: labelsNormas,
+            datasets: [
+              { label: 'Em Dia / Conforme', data: arrayOK, backgroundColor: '#2ecc71', borderRadius: 4 },
+              { label: 'Pendente / Vencido', data: arrayPendente, backgroundColor: '#e74c3c', borderRadius: 4 }
+            ]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } } },
+            scales: { x: { stacked: true }, y: { stacked: true, ticks: { font: { size: 11 } } } }
+          }
         });
       }
 
-      elFiltroStatus.innerHTML = htmlStatus;
+      // --- 2. Gráfico de Evolução (Linha de Meta + Índice do Marco Zero) ---
+      var porcentagemAtual = totalDocs > 0 ? Math.round((totalConformes / totalDocs) * 100) : 0;
+      
+      var ctx2 = document.getElementById('chartEvolucao');
+      if (ctx2) {
+        if (chartEvoInst) chartEvoInst.destroy();
+        chartEvoInst = new Chart(ctx2, {
+          type: 'bar',
+          data: {
+            labels: ['Marco Zero (Início)', 'Atual (Julho/2026)'],
+            datasets: [
+              {
+                type: 'line',
+                label: 'Meta SQA (85%)',
+                data: [85, 85],
+                borderColor: '#3b82f6',
+                borderWidth: 2,
+                borderDash: [6, 6],
+                pointRadius: 0
+              },
+              {
+                type: 'bar',
+                label: '% de Conformidade Geral',
+                data: [Math.max(0, porcentagemAtual - 10), porcentagemAtual],
+                backgroundColor: '#2ecc71',
+                borderRadius: 6,
+                barPercentage: 0.45
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } } },
+            scales: { y: { min: 0, max: 100, ticks: { callback: v => v + '%' } } }
+          }
+        });
+      }
+
+      // --- 3. Gráfico de Prazos (Semáforo Horizontal) ---
+      var ctx3 = document.getElementById('chartPrazos');
+      if (ctx3) {
+        if (chartPrazosInst) chartPrazosInst.destroy();
+        chartPrazosInst = new Chart(ctx3, {
+          type: 'bar',
+          data: {
+            labels: ['Status de Todos os Requisitos Monitorados'],
+            datasets: [
+              { label: 'Seguro (> 30 dias)', data: [prazosOK], backgroundColor: '#2ecc71', borderRadius: 4 },
+              { label: 'Atenção (<= 30 dias)', data: [prazosAtencao], backgroundColor: '#f1c40f', borderRadius: 4 },
+              { label: 'Pendente / Vencido', data: [prazosVencido], backgroundColor: '#e74c3c', borderRadius: 4 }
+            ]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } } },
+            scales: { x: { stacked: true }, y: { stacked: true, display: false } }
+          }
+        });
+      }
     }
 
-    function renderizarLista() {
-      const termo = elBuscaNome.value.trim().toLowerCase();
-      const statusSel = elFiltroStatus.value;
-      const paisSel = elFiltroPais.value;
+    // ==========================================================
+    // RENDEREZAÇÃO DOS FORNECEDORES E INTERATIVIDADE
+    // ==========================================================
+    function atualizarContadores() {
+      var ttl = listaCompletaFornecedores.length;
+      var vrd = 0;
+      var vrm = 0;
 
-      const filtrados = dadosFornecedores.filter(forn => {
-        const score = forn.scoreCalculado;
-
-        if (statusSel !== 'TODOS') {
-          if (statusSel === '100' && score !== 100) return false;
-          if (statusSel === '1_99' && (score < 1 || score >= 100)) return false;
-          if (statusSel === '0' && score !== 0) return false;
-          if (!['100', '1_99', '0'].includes(statusSel) && String(score) !== statusSel) return false;
-        }
-
-        if (paisSel !== 'TODOS' && forn.pais !== paisSel) return false;
-
-        if (termo !== '') {
-          const nome = String(forn.nome || '').toLowerCase();
-          const sap = String(forn.id || '').toLowerCase();
-          if (!nome.includes(termo) && !sap.includes(termo)) return false;
-        }
-
-        return true;
+      listaCompletaFornecedores.forEach(f => {
+        var temPendencia = (f.documentos || []).some(d => d.cor !== '#2ecc71');
+        if (temPendencia) vrm++;
+        else vrd++;
       });
 
-      elGrid.innerHTML = '';
+      document.getElementById('countTodos').innerText = ttl;
+      document.getElementById('countVerde').innerText = vrd;
+      document.getElementById('countVermelho').innerText = vrm;
+    }
+
+    function aplicarFiltro(tipo, botao) {
+      filtroAtivo = tipo;
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      botao.classList.add('active');
+      renderizarPortal();
+    }
+
+    function filtrarLista() {
+      renderizarPortal();
+    }
+
+    function renderizarPortal() {
+      var textoBusca = document.getElementById('searchInput').value.trim().toLowerCase();
+      var container = document.getElementById('suppliersContainer');
+      container.innerHTML = "";
+
+      var filtrados = listaCompletaFornecedores.filter(f => {
+        var matchBusca = f.nome.toLowerCase().includes(textoBusca) || String(f.id).includes(textoBusca);
+        var temPendencia = (f.documentos || []).some(d => d.cor !== '#2ecc71');
+
+        if (!matchBusca) return false;
+        if (filtroAtivo === "VERDE" && temPendencia) return false;
+        if (filtroAtivo === "VERMELHO" && !temPendencia) return false;
+        return true;
+      });
 
       if (filtrados.length === 0) {
-        elGrid.innerHTML = '<div class="aviso">Nenhum fornecedor encontrado para os filtros selecionados.</div>';
+        container.innerHTML = `<p style="text-align:center; color:var(--text-muted); padding:30px 0;">Nenhum fornecedor compatível com o filtro aplicado.</p>`;
         return;
       }
 
-      filtrados.forEach((forn, idxCard) => {
-        const score = forn.scoreCalculado;
-        const scoreCor = score === 100 ? '#2ecc71' : score === 0 ? '#e74c3c' : '#f39c12';
+      filtrados.forEach((fornecedor, idx) => {
+        var temPendencia = (fornecedor.documentos || []).some(d => d.cor !== '#2ecc71');
+        var corGeral = temPendencia ? "var(--danger)" : "var(--success)";
+        var txtGeral = temPendencia ? "PENDÊNCIAS / ATRASADO" : "100% CONFORME";
 
-        let cardsDocs = '';
-        let totalDocs = 0;
+        var card = document.createElement('div');
+        card.className = 'supplier-card';
+        card.style.borderLeft = `5px solid ${corGeral}`;
 
-        if (forn.documentos && forn.documentos.length > 0) {
-          forn.documentos.forEach((doc, idxDoc) => {
-            const str = String(doc.status).trim().toUpperCase();
-            if (str === 'N.A' || str === 'N/A' || str === '-' || str === '') return;
-            
-            totalDocs++;
-            const isConforme = verificarSeConforme(doc.status);
-            const badgeCor = isConforme ? '#2ecc71' : '#e74c3c';
+        var linhasTabela = "";
+        (fornecedor.documentos || []).forEach(doc => {
+          var linkHtml = doc.link 
+            ? `<a href="${doc.link}" target="_blank" class="btn-action"><i class="fa-solid fa-arrow-up-right-from-square"></i> Ver</a>`
+            : `<span style="color:#9ca3af;">-</span>`;
 
-            const btnLink = doc.link ? `<a href="${doc.link}" target="_blank" class="botao-link">🔗 Visualizar</a>` : '';
-            const btnUp = (doc.linhaBase && doc.linhaBase > 0) ? 
-              `<button onclick="abrirModal('${forn.id}', ${idxDoc}); event.stopPropagation();" class="botao-upload">📤 Atualizar</button>` : '';
-
-            cardsDocs += `
-              <div class="doc-item">
-                <div class="doc-info">
-                  <span class="doc-nome">${doc.nome}</span>
-                  <span class="status-badge" style="background-color: ${badgeCor};">${doc.status}</span>
-                </div>
-                <div class="doc-acoes">
-                  ${btnLink}
-                  ${btnUp}
-                </div>
-              </div>
-            `;
-          });
-        }
-
-        const cartaoHtml = `
-          <div class="card">
-            <div class="card-topo" onclick="toggleAcordeao('lista-doc-${idxCard}', 'btn-exp-${idxCard}')">
-              <div>
-                <h3 class="nome-fornecedor">${forn.nome}</h3>
-                <span class="sap-badge">SAP: ${forn.id}</span>
-                <span class="pais-badge">🌍 ${forn.pais || 'N/D'}</span>
-              </div>
-              <div class="card-direita">
-                <div class="score-container">
-                  <span class="score-texto" style="color: ${scoreCor};">${score}%</span>
-                  <span class="score-label">Conformidade</span>
-                </div>
-                <button id="btn-exp-${idxCard}" type="button" class="btn-expandir">
-                  ▼ Expandir (${totalDocs})
+          linhasTabela += `
+            <tr>
+              <td><strong>${doc.nome}</strong></td>
+              <td>
+                <span class="badge-doc" style="background:${doc.cor};">${doc.status}</span>
+              </td>
+              <td>${linkHtml}</td>
+              <td style="text-align:right;">
+                <button class="btn-upload" onclick="abrirSeletorArquivo('${fornecedor.id}', '${fornecedor.nome}', '${doc.abaDestino}', ${doc.linhaBase}, ${doc.colStatus})">
+                  <i class="fa-solid fa-cloud-arrow-up"></i> Upload
                 </button>
+              </td>
+            </tr>
+          `;
+        });
+
+        card.innerHTML = `
+          <div class="supplier-header" onclick="toggleDetalhes('det-${idx}')">
+            <div class="supplier-info">
+              <h3>${fornecedor.nome}</h3>
+              <div class="supplier-meta">
+                <span><strong>SAP:</strong> ${fornecedor.id}</span>
+                <span><strong>País:</strong> ${fornecedor.pais}</span>
               </div>
             </div>
-            
-            <div id="lista-doc-${idxCard}" class="lista-docs">
-              ${cardsDocs}
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span class="badge-status" style="background: ${corGeral};">${txtGeral}</span>
+              <i class="fa-solid fa-chevron-down" style="color: var(--text-muted);"></i>
             </div>
           </div>
-        `;
 
-        elGrid.innerHTML += cartaoHtml;
+          <div id="det-${idx}" class="supplier-details">
+            <table class="docs-table">
+              <thead>
+                <tr>
+                  <th>Requisito / Auditoria</th>
+                  <th>Status / Validade</th>
+                  <th>Documento Atual</th>
+                  <th style="text-align:right;">Ação</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${linhasTabela || '<tr><td colspan="4" style="text-align:center;">Nenhum documento ou auditoria mapeado.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        `;
+        container.appendChild(card);
       });
     }
 
-    function toggleAcordeao(idLista, idBotao) {
-      const elLista = document.getElementById(idLista);
-      const elBtn = document.getElementById(idBotao);
-      if (!elLista || !elBtn) return;
-
-      const estaAberto = elLista.classList.contains('aberto');
-      if (estaAberto) {
-        elLista.classList.remove('aberto');
-        elBtn.innerHTML = elBtn.innerHTML.replace('▲ Recolher', '▼ Expandir');
+    function toggleDetalhes(id) {
+      var elem = document.getElementById(id);
+      if (elem.style.display === "block") {
+        elem.style.display = "none";
       } else {
-        elLista.classList.add('aberto');
-        elBtn.innerHTML = elBtn.innerHTML.replace('▼ Expandir', '▲ Recolher');
+        elem.style.display = "block";
       }
     }
 
-    function abrirModal(idSap, docIndex) {
-      const forn = dadosFornecedores.find(f => String(f.id) === String(idSap));
-      if (!forn) return;
-      const doc = forn.documentos[docIndex];
-      if (!doc) return;
-
-      uploadContexto = { fornecedor: forn, doc: doc };
-      document.getElementById('modal-fornecedor-nome').textContent = forn.nome;
-      document.getElementById('modal-doc-nome').textContent = doc.nome;
-      document.getElementById('input-arquivo').value = '';
-      elModal.style.display = 'flex';
+    // ==========================================================
+    // FLUXO DE UPLOAD VIA SUPABASE
+    // ==========================================================
+    function abrirSeletorArquivo(idFornecedor, nomeFornecedor, abaDestino, linhaBase, colStatus) {
+      contextoUpload = { idFornecedor, nomeFornecedor, abaDestino, linhaBase, colStatus };
+      document.getElementById('fileInput').click();
     }
 
-    document.getElementById('btn-cancelar').addEventListener('click', () => {
-      elModal.style.display = 'none';
-      uploadContexto = { fornecedor: null, doc: null };
-    });
+    function executarUploadArquivo(input) {
+      var file = input.files[0];
+      if (!file || !contextoUpload) return;
 
-    document.getElementById('form-upload').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const arquivoInput = document.getElementById('input-arquivo');
-      if (!arquivoInput.files || arquivoInput.files.length === 0) return;
-      
-      const arquivo = arquivoInput.files[0];
-      const btnEnviar = document.getElementById('btn-enviar');
-      btnEnviar.disabled = true;
-      btnEnviar.textContent = "Enviando...";
+      var leitor = new FileReader();
+      leitor.onload = function(e) {
+        var result = e.target.result;
+        var arrayBase64 = result.split(',');
+        var b64Data = arrayBase64[arrayBase64.length - 1];
 
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const base64Clean = reader.result.split(',')[1];
-        const pacote = {
-          idFornecedor: uploadContexto.fornecedor.id,
-          nomeFornecedor: uploadContexto.fornecedor.nome,
-          nomeArquivo: arquivo.name,
-          mimeType: arquivo.type || "application/pdf",
-          base64: base64Clean,
-          abaDestino: uploadContexto.doc.abaDestino,
-          linhaBase: uploadContexto.doc.linhaBase,
-          colStatus: uploadContexto.doc.colStatus
+        var pacote = {
+          nomeArquivo: file.name,
+          mimeType: file.type,
+          base64: b64Data,
+          idFornecedor: contextoUpload.idFornecedor,
+          nomeFornecedor: contextoUpload.nomeFornecedor,
+          abaDestino: contextoUpload.abaDestino,
+          linhaBase: contextoUpload.linhaBase,
+          colStatus: contextoUpload.colStatus
         };
 
-        try {
-          const resp = await fetch(`${SUPABASE_URL}/rest/v1/fila_uploads`, {
-            method: 'POST',
-            headers: {
-              'apikey': API_KEY,
-              'Authorization': `Bearer ${API_KEY}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ pacote: pacote, processado: false })
-          });
-
-          if (resp.ok) {
-            alert("Arquivo enviado com sucesso! O sistema atualizará o status na planilha em alguns minutos.");
-            elModal.style.display = 'none';
-          } else {
-            alert("Erro ao enviar o arquivo. Tente novamente.");
-          }
-        } catch (err) {
-          console.error("Erro upload:", err);
-          alert("Erro de conexão ao enviar o arquivo.");
-        } finally {
-          btnEnviar.disabled = false;
-          btnEnviar.textContent = "Confirmar Envio";
-        }
+        enviarFilaSupabase(pacote);
       };
-      reader.readAsDataURL(arquivo);
-    });
+      leitor.readAsDataURL(file);
+      input.value = "";
+    }
 
-    elBuscaNome.addEventListener('input', renderizarLista);
-    elFiltroStatus.addEventListener('change', renderizarLista);
-    elFiltroPais.addEventListener('change', renderizarLista);
-
-    carregarDados();
+    function enviarFilaSupabase(pacote) {
+      fetch(CONFIG_SUPABASE.urlFila, {
+        method: "POST",
+        headers: {
+          "apikey": CONFIG_SUPABASE.apiKey,
+          "Authorization": "Bearer " + CONFIG_SUPABASE.apiKey,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ pacote: pacote, processado: false })
+      })
+      .then(res => {
+        if (res.ok) {
+          alert("Arquivo enfileirado com sucesso! A planilha será atualizada no próximo ciclo automático.");
+        } else {
+          alert("Falha ao enviar arquivo para o Supabase. Verifique a conexão.");
+        }
+      })
+      .catch(err => {
+        alert("Erro no upload: " + err.message);
+      });
+    }
   </script>
 </body>
 </html>
