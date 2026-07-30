@@ -141,7 +141,7 @@
       width: 100%;
     }
 
-    /* --- CONTROLES DE BUSCA --- */
+    /* --- CONTROLES DE BUSCA E FILTROS AVANÇADOS --- */
     .controls-container {
       background: var(--card-bg);
       padding: 20px;
@@ -181,9 +181,19 @@
       color: var(--text-muted);
     }
 
+    .advanced-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid var(--border);
+      padding-top: 15px;
+    }
+
     .filter-buttons {
       display: flex;
-      gap: 10px;
+      gap: 8px;
       flex-wrap: wrap;
     }
 
@@ -191,10 +201,10 @@
       background: #f1f5f9;
       border: 1px solid var(--border);
       color: var(--text-main);
-      padding: 8px 16px;
+      padding: 8px 14px;
       border-radius: 6px;
       cursor: pointer;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       font-weight: 500;
       transition: all 0.2s;
     }
@@ -203,6 +213,27 @@
       background: var(--primary);
       color: white;
       border-color: var(--primary);
+    }
+
+    .filter-selects {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .filter-select {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.85rem;
+      color: var(--text-main);
+      background-color: white;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .filter-select:focus {
+      border-color: var(--secondary);
     }
 
     /* --- CARDS FORNECEDORES --- */
@@ -360,6 +391,10 @@
         text-align: left;
         margin-right: 0;
       }
+      .advanced-filters {
+        flex-direction: column;
+        align-items: flex-start;
+      }
     }
   </style>
 </head>
@@ -410,17 +445,34 @@
     </div>
   </section>
 
-  <!-- CAIXA DE BUSCA E FILTROS -->
+  <!-- CAIXA DE BUSCA E BARRA DE FILTROS AVANÇADOS -->
   <section class="controls-container">
     <div class="search-box">
       <input type="text" id="searchInput" placeholder="Buscar por Nome do Fornecedor ou Código SAP..." onkeyup="filtrarLista()">
       <i class="fa-solid fa-magnifying-glass"></i>
     </div>
     
-    <div class="filter-buttons">
-      <button class="filter-btn active" onclick="aplicarFiltro('TODOS', this)">Todos (<span id="countTodos">0</span>)</button>
-      <button class="filter-btn" onclick="aplicarFiltro('VERDE', this)">Conformes (<span id="countVerde">0</span>)</button>
-      <button class="filter-btn" onclick="aplicarFiltro('VERMELHO', this)">Pendentes / Vencidos (<span id="countVermelho">0</span>)</button>
+    <div class="advanced-filters">
+      <!-- Botões de Status Rápidos -->
+      <div class="filter-buttons">
+        <button class="filter-btn active" onclick="aplicarFiltroStatus('TODOS', this)">Todos (<span id="countTodos">0</span>)</button>
+        <button class="filter-btn" onclick="aplicarFiltroStatus('VERDE', this)">Conformes (<span id="countVerde">0</span>)</button>
+        <button class="filter-btn" onclick="aplicarFiltroStatus('VERMELHO', this)">Pendentes / Vencidos (<span id="countVermelho">0</span>)</button>
+        <button class="filter-btn" onclick="aplicarFiltroStatus('ATENCAO', this)">Vence em ≤ 30 Dias (<span id="countAtencao">0</span>)</button>
+      </div>
+
+      <!-- Seletores Específicos por Norma e por País -->
+      <div class="filter-selects">
+        <select id="selectNorma" class="filter-select" onchange="filtrarLista()">
+          <option value="">Todas as Normas / Auditorias</option>
+          <!-- Preenchido dinamicamente via JS -->
+        </select>
+
+        <select id="selectPais" class="filter-select" onchange="filtrarLista()">
+          <option value="">Todos os Países</option>
+          <!-- Preenchido dinamicamente via JS -->
+        </select>
+      </div>
     </div>
   </section>
 
@@ -442,7 +494,7 @@
     };
 
     var listaCompletaFornecedores = [];
-    var filtroAtivo = "TODOS";
+    var filtroStatusAtivo = "TODOS";
     var contextoUpload = null;
 
     // Instâncias do Chart.js
@@ -470,6 +522,7 @@
             listaCompletaFornecedores = registro.json_completo.fornecedores || [];
             listaCompletaFornecedores.sort((a, b) => a.nome.localeCompare(b.nome));
             
+            preencherFiltrosDinamicos();
             atualizarContadores();
             renderizarPortal();
             renderizarGraficos();
@@ -480,6 +533,34 @@
       })
       .catch(err => {
         document.getElementById('suppliersContainer').innerHTML = `<p style="text-align:center; color:#e74c3c;">Erro ao conectar com Supabase: ${err.message}</p>`;
+      });
+    }
+
+    // ==========================================================
+    // PREENCHIMENTO DINÂMICO DE NORMAS E PAÍSES NO DROPDOWN
+    // ==========================================================
+    function preencherFiltrosDinamicos() {
+      var setNormas = new Set();
+      var setPaises = new Set();
+
+      listaCompletaFornecedores.forEach(f => {
+        if (f.pais) setPaises.add(String(f.pais).trim());
+        (f.documentos || []).forEach(doc => {
+          var nomeDocLimpo = doc.nome.replace(/^[0-9]+\.\s*/, '').trim();
+          if (nomeDocLimpo) setNormas.add(nomeDocLimpo);
+        });
+      });
+
+      var selNorma = document.getElementById('selectNorma');
+      selNorma.innerHTML = `<option value="">Todas as Normas / Auditorias</option>`;
+      Array.from(setNormas).sort().forEach(norma => {
+        selNorma.innerHTML += `<option value="${norma}">${norma}</option>`;
+      });
+
+      var selPais = document.getElementById('selectPais');
+      selPais.innerHTML = `<option value="">Todos os Países</option>`;
+      Array.from(setPaises).sort().forEach(pais => {
+        selPais.innerHTML += `<option value="${pais}">${pais}</option>`;
       });
     }
 
@@ -629,26 +710,37 @@
     }
 
     // ==========================================================
-    // RENDEREZAÇÃO DOS FORNECEDORES E INTERATIVIDADE
+    // FILTRAGEM MULTI-CRITÉRIOS DOS FORNECEDORES
     // ==========================================================
     function atualizarContadores() {
       var ttl = listaCompletaFornecedores.length;
       var vrd = 0;
       var vrm = 0;
+      var atn = 0;
 
       listaCompletaFornecedores.forEach(f => {
-        var temPendencia = (f.documentos || []).some(d => d.cor !== '#2ecc71');
+        var docs = f.documentos || [];
+        var temPendencia = docs.some(d => d.cor !== '#2ecc71');
+        
+        // Checa se algum documento vence em até 30 dias
+        var venceEmBreve = docs.some(d => {
+          var numDias = Number(String(d.status).replace(/[^0-9.-]+/g, ""));
+          return !isNaN(numDias) && numDias > 0 && numDias <= 30;
+        });
+
         if (temPendencia) vrm++;
         else vrd++;
+        if (venceEmBreve) atn++;
       });
 
       document.getElementById('countTodos').innerText = ttl;
       document.getElementById('countVerde').innerText = vrd;
       document.getElementById('countVermelho').innerText = vrm;
+      document.getElementById('countAtencao').innerText = atn;
     }
 
-    function aplicarFiltro(tipo, botao) {
-      filtroAtivo = tipo;
+    function aplicarFiltroStatus(tipo, botao) {
+      filtroStatusAtivo = tipo;
       document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
       botao.classList.add('active');
       renderizarPortal();
@@ -660,21 +752,43 @@
 
     function renderizarPortal() {
       var textoBusca = document.getElementById('searchInput').value.trim().toLowerCase();
+      var filtroNorma = document.getElementById('selectNorma').value;
+      var filtroPais = document.getElementById('selectPais').value;
       var container = document.getElementById('suppliersContainer');
       container.innerHTML = "";
 
       var filtrados = listaCompletaFornecedores.filter(f => {
+        var docs = f.documentos || [];
+        
+        // 1. Filtro de Texto (Nome ou SAP)
         var matchBusca = f.nome.toLowerCase().includes(textoBusca) || String(f.id).includes(textoBusca);
-        var temPendencia = (f.documentos || []).some(d => d.cor !== '#2ecc71');
-
         if (!matchBusca) return false;
-        if (filtroAtivo === "VERDE" && temPendencia) return false;
-        if (filtroAtivo === "VERMELHO" && !temPendencia) return false;
+
+        // 2. Filtro de País
+        if (filtroPais && String(f.pais).trim() !== filtroPais) return false;
+
+        // 3. Filtro por Norma Específica
+        if (filtroNorma) {
+          var possuiNorma = docs.some(d => d.nome.replace(/^[0-9]+\.\s*/, '').trim() === filtroNorma);
+          if (!possuiNorma) return false;
+        }
+
+        // 4. Filtro de Status Rápido
+        var temPendencia = docs.some(d => d.cor !== '#2ecc71');
+        var venceEmBreve = docs.some(d => {
+          var numDias = Number(String(d.status).replace(/[^0-9.-]+/g, ""));
+          return !isNaN(numDias) && numDias > 0 && numDias <= 30;
+        });
+
+        if (filtroStatusAtivo === "VERDE" && temPendencia) return false;
+        if (filtroStatusAtivo === "VERMELHO" && !temPendencia) return false;
+        if (filtroStatusAtivo === "ATENCAO" && !venceEmBreve) return false;
+
         return true;
       });
 
       if (filtrados.length === 0) {
-        container.innerHTML = `<p style="text-align:center; color:var(--text-muted); padding:30px 0;">Nenhum fornecedor compatível com o filtro aplicado.</p>`;
+        container.innerHTML = `<p style="text-align:center; color:var(--text-muted); padding:30px 0;">Nenhum fornecedor compatível com os filtros aplicados.</p>`;
         return;
       }
 
@@ -683,7 +797,6 @@
         var totalDocsFornecedor = docs.length;
         var docsConformesFornecedor = 0;
 
-        // CÁLCULO DA PORCENTAGEM DE CONFORMIDADE DO FORNECEDOR
         docs.forEach(d => {
           if (d.cor === '#2ecc71') docsConformesFornecedor++;
         });
@@ -722,7 +835,6 @@
           `;
         });
 
-        // CABEÇALHO DO CARD COM PORCENTAGEM RESTAURADA EM DESTAQUE
         card.innerHTML = `
           <div class="supplier-header" onclick="toggleDetalhes('det-${idx}')">
             <div class="supplier-info">
@@ -736,7 +848,7 @@
             </div>
 
             <div style="display: flex; align-items: center; gap: 15px;">
-              <!-- PORCENTAGEM DE CONFORMIDADE DE VOLTA -->
+              <!-- PORCENTAGEM DE CONFORMIDADE EM DESTAQUE -->
               <div class="score-container">
                 <div class="score-percent" style="color: ${corGeral};">${porcentagemConformidade}%</div>
                 <div class="score-sub">${docsConformesFornecedor} de ${totalDocsFornecedor} OK</div>
