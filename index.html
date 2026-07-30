@@ -238,6 +238,9 @@
       font-size: 1.1rem;
       color: var(--text-main);
       margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
 
     .supplier-meta {
@@ -245,6 +248,24 @@
       color: var(--text-muted);
       display: flex;
       gap: 15px;
+      flex-wrap: wrap;
+    }
+
+    .score-container {
+      text-align: right;
+      margin-right: 10px;
+    }
+
+    .score-percent {
+      font-size: 1.15rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .score-sub {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 2px;
     }
 
     .badge-status {
@@ -333,7 +354,11 @@
       .supplier-header {
         flex-direction: column;
         align-items: flex-start;
-        gap: 10px;
+        gap: 12px;
+      }
+      .score-container {
+        text-align: left;
+        margin-right: 0;
       }
     }
   </style>
@@ -548,7 +573,7 @@
         chartEvoInst = new Chart(ctx2, {
           type: 'bar',
           data: {
-            labels: ['Marco Zero (Início)', 'Atual (Julho/2026)'],
+            labels: ['Marco Zero (Início)', 'Atual'],
             datasets: [
               {
                 type: 'line',
@@ -654,7 +679,20 @@
       }
 
       filtrados.forEach((fornecedor, idx) => {
-        var temPendencia = (fornecedor.documentos || []).some(d => d.cor !== '#2ecc71');
+        var docs = fornecedor.documentos || [];
+        var totalDocsFornecedor = docs.length;
+        var docsConformesFornecedor = 0;
+
+        // CÁLCULO DA PORCENTAGEM DE CONFORMIDADE DO FORNECEDOR
+        docs.forEach(d => {
+          if (d.cor === '#2ecc71') docsConformesFornecedor++;
+        });
+
+        var porcentagemConformidade = totalDocsFornecedor > 0 
+          ? Math.round((docsConformesFornecedor / totalDocsFornecedor) * 100) 
+          : 0;
+
+        var temPendencia = docs.some(d => d.cor !== '#2ecc71');
         var corGeral = temPendencia ? "var(--danger)" : "var(--success)";
         var txtGeral = temPendencia ? "PENDÊNCIAS / ATRASADO" : "100% CONFORME";
 
@@ -663,7 +701,7 @@
         card.style.borderLeft = `5px solid ${corGeral}`;
 
         var linhasTabela = "";
-        (fornecedor.documentos || []).forEach(doc => {
+        docs.forEach(doc => {
           var linkHtml = doc.link 
             ? `<a href="${doc.link}" target="_blank" class="btn-action"><i class="fa-solid fa-arrow-up-right-from-square"></i> Ver</a>`
             : `<span style="color:#9ca3af;">-</span>`;
@@ -684,16 +722,26 @@
           `;
         });
 
+        // CABEÇALHO DO CARD COM PORCENTAGEM RESTAURADA EM DESTAQUE
         card.innerHTML = `
           <div class="supplier-header" onclick="toggleDetalhes('det-${idx}')">
             <div class="supplier-info">
-              <h3>${fornecedor.nome}</h3>
+              <h3>
+                ${fornecedor.nome}
+              </h3>
               <div class="supplier-meta">
                 <span><strong>SAP:</strong> ${fornecedor.id}</span>
                 <span><strong>País:</strong> ${fornecedor.pais}</span>
               </div>
             </div>
-            <div style="display: flex; align-items: center; gap: 12px;">
+
+            <div style="display: flex; align-items: center; gap: 15px;">
+              <!-- PORCENTAGEM DE CONFORMIDADE DE VOLTA -->
+              <div class="score-container">
+                <div class="score-percent" style="color: ${corGeral};">${porcentagemConformidade}%</div>
+                <div class="score-sub">${docsConformesFornecedor} de ${totalDocsFornecedor} OK</div>
+              </div>
+
               <span class="badge-status" style="background: ${corGeral};">${txtGeral}</span>
               <i class="fa-solid fa-chevron-down" style="color: var(--text-muted);"></i>
             </div>
